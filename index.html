@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stoa Capital — Private Investment Firm</title>
+
+    <!-- SEO Meta Tags -->
+    <!-- TODO: replace this description with Stoa Capital's real positioning before publishing. -->
+    <meta name="description" content="Stoa Capital is a private investment firm founded by Mattia Astori." />
+    <meta name="author" content="Mattia Astori" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="theme-color" content="#FCFAF2" />
+    <link rel="canonical" href="https://stoacap.com/" />
+    <link rel="alternate" type="text/plain" href="https://stoacap.com/llms.txt" title="LLM-readable site summary" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Stoa Capital" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:url" content="https://stoacap.com/" />
+    <meta property="og:title" content="Stoa Capital — Private Investment Firm" />
+    <meta property="og:description" content="A private investment firm founded by Mattia Astori." />
+    <!-- TODO: add a real OG image (1200x630) at /og.png and re-enable the tags below. -->
+    <!--
+    <meta property="og:image" content="https://stoacap.com/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Stoa Capital" />
+    -->
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Stoa Capital — Private Investment Firm" />
+    <meta name="twitter:description" content="A private investment firm founded by Mattia Astori." />
+
+    <!-- Structured Data -->
+    <!-- TODO: fill in real founding date, address, and description once finalized. -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": ["FinancialService", "Organization"],
+          "@id": "https://stoacap.com/#organization",
+          "name": "Stoa Capital",
+          "url": "https://stoacap.com/",
+          "email": "mattia@stoacap.com",
+          "description": "Private investment firm founded by Mattia Astori.",
+          "founder": {
+            "@id": "https://stoacap.com/#mattia-astori"
+          }
+        },
+        {
+          "@type": "Person",
+          "@id": "https://stoacap.com/#mattia-astori",
+          "name": "Mattia Astori",
+          "url": "https://stoacap.com/",
+          "email": "mattia@stoacap.com",
+          "jobTitle": "Founder",
+          "worksFor": {
+            "@id": "https://stoacap.com/#organization"
+          }
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://stoacap.com/#website",
+          "url": "https://stoacap.com/",
+          "name": "Stoa Capital",
+          "publisher": {
+            "@id": "https://stoacap.com/#organization"
+          },
+          "inLanguage": "en-US"
+        }
+      ]
+    }
+    </script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  </head>
+  <body class="light-mode">
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
