@@ -1,0 +1,172 @@
+# Stoa Capital — Full Profile
+
+> Stoa Capital is a private investment firm founded by Mattia Astori, based in San Francisco, California. The firm provides late-stage liquidity and early-stage access in private companies through secondaries and co-investments.
+
+---
+
+## Founder
+
+**Mattia Astori**
+- Founder of Stoa Capital (2025–present)
+- Previously Head of Private Capital at Wefunder (2023–2025)
+- Registered Representative of Alternative Markets LLC, member FINRA/SIPC
+- Holds Series 7 and Series 63 licenses
+- Contact: mattia@stoacap.com
+- Website: https://stoacap.com
+
+## Firm Structure
+
+- **Astori Ventures LLC** — Parent entity and investment firm, doing business as Stoa Capital
+- **Opus Advisors LLC** — Wholly-owned subsidiary; SEC Exempt Reporting Adviser; handles investment advisory and fund management
+- **Alternative Markets LLC** — Member FINRA/SIPC; handles securities brokerage activities (separate entity)
+
+## Investment Strategy
+
+Stoa Capital operates across two main strategies:
+
+### 1. Secondaries
+Acquiring shares in high-growth private companies on the secondary market. This provides liquidity to existing shareholders (employees, early investors) while giving Stoa Capital exposure to proven, high-growth companies at later stages.
+
+### 2. Co-Investments & Early-Stage
+Direct investments alongside top-tier institutional venture capital firms. The firm also manages Vintage Portfolios — diversified portfolios of early-stage YC companies deployed via a scout network of active founders.
+
+## Cumulative Track Record
+
+Statistics represent combined transaction experience of Mattia Astori across Wefunder (2023–2025) and Stoa Capital (2025–present):
+
+- **$66M** total capital deployed
+- **319** total investments
+- **7** vintage portfolios
+
+---
+
+## Portfolio
+
+### Stoa Capital Direct Investments (2025–present)
+
+Principal investments and brokered transactions executed through Stoa Capital:
+
+| Company | Year | Co-Investors |
+|---------|------|-------------|
+| AMI Labs | 2026 | Cathay Innovation, Greycroft, NVIDIA, Temasek |
+| Erebor | 2026 | 8VC, a16z, Founders Fund, Lux Capital |
+| Kalshi | 2026 | a16z, Coatue, IVP, Paradigm, Sequoia |
+| OpenAI | 2026 | a16z, Fidelity, Sequoia, SoftBank, Thrive Capital |
+| Project Prometheus | 2026 | BlackRock, DST Global, Goldman Sachs, JPMorgan |
+| SpaceX | 2026 | a16z, Fidelity, Founders Fund, Sequoia |
+| xAI | 2025 | a16z, Fidelity, Lightspeed, NVIDIA, Sequoia |
+
+Plus 1 unannounced investment (2026).
+
+### Transactions Led at Wefunder (2023–2025)
+
+Transactions executed and managed by Mattia Astori while consulting as Head of Private Capital at Wefunder:
+
+| Company | Year | Co-Investors |
+|---------|------|-------------|
+| Anduril | 2025 | Founders Fund, Sands Capital |
+| Boom Supersonic | 2024 | Altimeter, ARK Invest, Bessemer |
+| Databricks | 2024 | a16z, BlackRock, Fidelity, Thrive Capital |
+| ElevenLabs | 2024 | a16z, ICONIQ, Lightspeed, Sequoia |
+| OpenAI | 2024 | a16z, Fidelity, Sequoia, SoftBank, Thrive Capital |
+| Perplexity | 2024 | Bezos, IVP, NEA, NVIDIA, SoftBank |
+| Plaid | 2025 | BlackRock, Fidelity, Franklin Templeton, NEA |
+| SpaceX | 2024 | a16z, Fidelity, Founders Fund, Sequoia |
+| Varda | 2024 | Founders Fund, Khosla, Lux Capital |
+| xAI | 2024 | a16z, Fidelity, Lightspeed, NVIDIA, Sequoia |
+
+Note: Anduril and Plaid vehicles are now administered by Stoa Capital.
+
+### Selected Fund Investments
+
+Non-exhaustive subset of portfolio companies from Vintage Portfolios that have subsequently raised priced financing rounds or completed acquisitions:
+
+#### Unicorns
+
+| Company | Stage / Outcome | Website |
+|---------|----------------|---------|
+| Corgi | Unicorn from Seed Round | corgi.com |
+| Starcloud | Unicorn from Seed Round | starcloud.com |
+| Sunday Robotics | Unicorn from Seed Round | sunday.ai |
+
+#### Acquisitions
+
+| Company | Stage / Outcome | Website |
+|---------|----------------|---------|
+| Central | Acquired by Mercury | centralhq.com |
+| Leafpress | Acquired by Johnson Controls | johnsoncontrols.com |
+| Weights | Acquired by OpenAI | weights.gg |
+| Benchmark | Acquired by Harvey | withbenchmark.com |
+
+#### Series A & B Follow-ons
+
+| Company | Follow-on Stage | Website |
+|---------|----------------|---------|
+| AfterQuery | Series A | afterquery.com |
+| Alex | Series A | alex.com |
+| Andromeda | Series A | andromedasurgical.com |
+| Artie | Series A | artie.com |
+| Artisan AI | Series A | artisan.co |
+| Cluely | Series A | cluely.com |
+| Flora | Series A | flora.ai |
+| Garage | Series A | shopgarage.com |
+| Gentrace | Series A | gentrace.ai |
+| Harper | Series A | harperinsure.com |
+| Hello Patient | Series A | hellopatient.com |
+| Juicebox | Series B | juicebox.work |
+| Magic Patterns | Series A | magicpatterns.com |
+| Mastra | Series A | mastra.ai |
+| Momentic | Series A | momentic.ai |
+| Outset | Series B | outset.ai |
+| ParadeDB | Series A | paradedb.com |
+| PointOne | Series A | pointone.ai |
+| Pure | Series A | collectpure.com |
+| Ravenna | Series A | ravenna.ai |
+| Solve Intelligence | Series B | solveintelligence.com |
+| Terminal | Series A | withterminal.com |
+| Trayd | Series A | buildtrayd.com |
+
+### Vintage Portfolios
+
+Diversified portfolios of early-stage companies, originally deployed via a scout network of active founders:
+
+- Insiders Fund (2025) — 25+ companies
+- YC Vintage W23 (2023) — 40+ companies
+- YC Vintage S23 (2023) — 40+ companies
+- YC Vintage W24 (2024) — 45+ companies
+- YC Vintage S24 (2024) — 50+ companies
+- YC Vintage F24 (2024) — 40+ companies
+- YC Vintage W25 (2025) — 35+ companies
+
+---
+
+## Co-Investors
+
+Institutional investors in portfolio companies from transactions executed by Mattia Astori:
+
+- Benchmark
+- a16z (Andreessen Horowitz)
+- Sequoia Capital
+- Khosla Ventures
+- Kleiner Perkins
+- Accel
+- Lightspeed Venture Partners
+- Bessemer Venture Partners
+- Y Combinator
+- Founders Fund
+- General Catalyst
+- Thrive Capital
+
+---
+
+## Disclosures
+
+Mattia Astori is a Registered Representative of Alternative Markets LLC, member FINRA/SIPC. Registration and disciplinary history are available via FINRA BrokerCheck.
+
+Securities brokerage activities are conducted through Alternative Markets LLC. Investment advisory and fund management activities are conducted through Opus Advisors LLC, a wholly-owned subsidiary of Astori Ventures LLC (doing business as Stoa Capital) and a Securities and Exchange Commission Exempt Reporting Adviser. Astori Ventures LLC and Opus Advisors LLC are separate from Alternative Markets LLC and are not broker-dealers.
+
+This content is for informational purposes only and does not constitute an offer to sell or solicitation of an offer to buy any securities. Investments in private companies are speculative and illiquid, involve a high degree of risk including total loss of capital, have no public market and an indefinite holding period, and are available only to eligible investors. Valuations shown are estimates and may not reflect realizable value. Past performance is not indicative of future results.
+
+---
+
+Last updated: September 2026
