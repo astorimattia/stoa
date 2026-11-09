@@ -48,7 +48,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         from: 'Stoa Requests <alerts@astori.vc>',
-        to: [process.env.NOTIFICATION_EMAIL || 'mattiastori@gmail.com'],
+        to: [process.env.NOTIFICATION_EMAIL || 'mattia@astori.vc'],
         subject,
         text,
       }),
