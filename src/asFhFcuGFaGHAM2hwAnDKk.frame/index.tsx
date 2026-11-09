@@ -61,7 +61,7 @@ export default function StoaHome(props: Props) {
       if (!res.ok) throw new Error(`Request failed: ${res.status}`)
       setPanel('requested')
     } catch {
-      setSendError('Something went wrong - please email research@stoacap.com directly.')
+      setSendError('Something went wrong - please try again in a moment.')
     } finally {
       setSending(false)
     }
