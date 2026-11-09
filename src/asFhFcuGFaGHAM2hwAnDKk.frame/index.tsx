@@ -215,6 +215,7 @@ export default function StoaHome(props: Props) {
                       <input
                         id="stoa-email"
                         type="email"
+                        disabled
                         required
                         value={value}
                         onChange={(e) => setValue(e.target.value)}
