@@ -255,16 +255,6 @@ export default function StoaHome(props: Props) {
         </h1>
       </main>
 
-      {/* Disclosures */}
-      <div className="select-none border-t border-paper/10 bg-ink px-4 py-2 text-[10px] leading-relaxed text-paper/40 sm:px-5">
-        <p>
-          Stoa Capital is a brand operated by Astori Ventures LLC. Opus Advisors LLC conducts investment advisory and fund management activities and is a wholly-owned subsidiary of Astori Ventures LLC, registered with the SEC as an Exempt Reporting Adviser. Securities brokerage activities are conducted through Alternative Markets LLC, a separate broker-dealer and member FINRA/SIPC. Astori Ventures LLC and Opus Advisors LLC are not broker-dealers and are separate from Alternative Markets LLC. Mattia Astori is a Registered Representative of Alternative Markets LLC.
-        </p>
-        <p className="mt-1">
-          This website is for informational purposes only and does not constitute an offer to sell or solicitation of an offer to buy any securities. Investments in private companies are speculative and illiquid, involve a high degree of risk including total loss of capital, have no public market and an indefinite holding period, and are available only to eligible investors. Past performance is not indicative of future results.
-        </p>
-      </div>
-
       {/* Footer */}
       <footer className="flex select-none flex-wrap items-center justify-between gap-x-6 gap-y-1 px-4 py-2.5 text-xs text-paper/70 sm:px-5">
         <span>
