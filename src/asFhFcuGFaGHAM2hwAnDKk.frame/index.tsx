@@ -223,14 +223,12 @@ export default function StoaHome(props: Props) {
                       />
                       <button
                         type="submit"
-                        disabled={sending}
+                        disabled
                         className="mt-6 w-full bg-paper px-4 py-2.5 text-sm font-medium text-ink transition-[background-color,transform] duration-150 ease-soft hover:bg-paper/90 active:scale-[0.98] active:duration-100 disabled:opacity-60"
                       >
                         {sending ? 'Sending…' : 'Send request'}
                       </button>
-                      {sendError && (
-                        <p className="mt-3 text-sm leading-relaxed text-red-300">{sendError}</p>
-                      )}
+                      <p className="mt-3 text-sm leading-relaxed text-paper/45">Requests are temporarily unavailable.</p>
                     </form>
                   )}
 
