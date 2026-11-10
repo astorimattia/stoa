@@ -1,4 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" fill="#1b1915"/>
-  <path d="M4 6h24v4H4z M6 12h4v10h4V12h4v10h4V12h4v10h2v4H4v-4h2z" fill="#f2ede3"/>
+  <style>
+    .favicon-text {
+      font-family: 'Tiempos Text', 'Tiempos', Georgia, serif;
+      font-size: 20px;
+      font-weight: 400;
+      fill: #FFFFFF;
+    }
+    @media (prefers-color-scheme: light) {
+      .favicon-text {
+        fill: #0E1626;
+      }
+    }
+  </style>
+  <text x="16.5" y="17.5" dominant-baseline="middle" text-anchor="middle" class="favicon-text">SC</text>
 </svg>
