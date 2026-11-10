@@ -1,13 +1,15 @@
-// Token-gated article delivery. Article text lives only in Neon, never in
-// the client bundle. A reading link carries a per-requester approval token;
-// this endpoint verifies it server-side (approved, not revoked, not expired)
+// Token-gated article delivery. The article text lives only in a sensitive
+// Vercel env var (write-only; never in the public repo or the client bundle).
+// A reading link carries a per-requester approval token; this endpoint
+// verifies it server-side (approved, not revoked, not expired, via Neon)
 // before releasing content. Approvals are granted one by one by Mattia -
 // nothing here auto-approves.
 
 import { getSql, ensureSchema } from './_stoa-db.js'
 
-// Reader slugs to the piece title stored on the request row.
-const PIECES = { 'yc-s26-screening': 'S26 Screening' }
+// Reader slugs to the piece title stored on the request row, plus the env var
+// holding that piece's content JSON.
+const PIECES = { 'yc-s26-screening': { title: 'S26 Screening', envKey: 'ARTICLE_YC_S26' } }
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -16,8 +18,8 @@ export default async function handler(req, res) {
 
   const piece = (req.query.piece || '').toString().slice(0, 100)
   const token = (req.query.t || '').toString().slice(0, 200)
-  const title = PIECES[piece]
-  if (!title || !token) {
+  const cfg = PIECES[piece]
+  if (!cfg || !token) {
     return res.status(400).json({ error: 'Missing piece or token' })
   }
 
@@ -32,7 +34,7 @@ export default async function handler(req, res) {
     const rows = await sql`
       select status, expires_at, revoked_at
       from stoa_requests
-      where token = ${token} and piece = ${title}
+      where token = ${token} and piece = ${cfg.title}
       limit 1
     `
     const r = rows[0]
@@ -45,14 +47,14 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'This reading link is not active' })
     }
 
-    const arts = await sql`select content from stoa_articles where piece = ${piece} limit 1`
-    if (!arts[0]) {
-      console.error(`[stoa] approved token but no content stored for ${piece}`)
-      return res.status(404).json({ error: 'Piece not available' })
+    const raw = process.env[cfg.envKey]
+    if (!raw) {
+      console.error(`[stoa] approved token but ${cfg.envKey} not configured`)
+      return res.status(503).json({ error: 'The reader is not configured yet' })
     }
 
     res.setHeader('Cache-Control', 'no-store')
-    return res.status(200).json({ article: arts[0].content })
+    return res.status(200).json({ article: JSON.parse(raw) })
   } catch (err) {
     console.error('[stoa] article lookup failed:', err)
     return res.status(502).json({ error: 'The reader is temporarily unavailable' })
