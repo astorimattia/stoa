@@ -54,7 +54,6 @@ function Footer() {
           Astori Ventures
         </a>
       </span>
-      <span>Nothing here is investment advice.</span>
     </footer>
   )
 }
@@ -154,7 +153,7 @@ function Gate({ meta, onBack, linkRejected }: { meta: ReaderMeta; onBack?: () =>
                 </p>
                 {linkRejected && (
                   <p className="mt-3 font-sans text-sm leading-relaxed text-accent">
-                    This reading link is not active. You can request a new one below.
+                    This reading link is not active.
                   </p>
                 )}
                 <div className="font-sans">
@@ -164,6 +163,7 @@ function Gate({ meta, onBack, linkRejected }: { meta: ReaderMeta; onBack?: () =>
                 <input
                   id="reader-email"
                   type="email"
+                  disabled
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -172,11 +172,12 @@ function Gate({ meta, onBack, linkRejected }: { meta: ReaderMeta; onBack?: () =>
                 />
                 <button
                   type="submit"
-                  disabled={sending}
+                  disabled
                   className="mt-3 w-full bg-ink px-4 py-2.5 font-sans text-sm font-medium text-paper transition-[background-color,transform] duration-150 ease-soft hover:bg-ink/85 active:scale-[0.98] active:duration-100 disabled:opacity-60"
                 >
                   {sending ? 'Sending…' : 'Send request'}
                 </button>
+                <p className="mt-3 font-sans text-sm leading-relaxed text-muted">Requests are temporarily unavailable.</p>
                 {error && <p className="mt-3 font-sans text-sm leading-relaxed text-accent">{error}</p>}
               </form>
             )}
@@ -273,10 +274,6 @@ export default function ArticleReader({ meta, onBack }: { meta: ReaderMeta; onBa
               ))}
             </section>
           ))}
-
-          <p className="mt-16 border-t border-rule pt-5 font-sans text-xs leading-relaxed text-muted">
-            Stoa is published by Astori Ventures for information only and is not investment advice.
-          </p>
         </article>
       </div>
       <Footer />
