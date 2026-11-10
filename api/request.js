@@ -1,7 +1,9 @@
-// Access-request capture: the request is stored in Neon, then an alert email
-// goes to Mattia. A request is confirmed to the visitor only after the row is
-// stored AND the email provider accepts the alert; otherwise the visitor gets
-// an honest error. Every approval is Mattia's own later action - nothing here
+// Access-request capture: the request is stored in Neon first. Storing the
+// row is what confirms a request - the visitor gets success only after the
+// row exists. The alert email to Mattia is then attempted best-effort: a
+// provider failure is logged for follow-up but never changes the visitor's
+// confirmed request, and a retry after an alert failure never creates a
+// duplicate row. Every approval is Mattia's own later action - nothing here
 // grants access.
 
 import { getSql, ensureSchema } from './_stoa-db.js'
@@ -18,7 +20,7 @@ export default async function handler(req, res) {
     try { body = JSON.parse(body) } catch { body = {} }
   }
 
-  const email = (body.email || '').toString().trim().slice(0, 200)
+  const email = (body.email || '').toString().trim().slice(0, 200).toLowerCase()
   const role = (body.role || '').toString().slice(0, 50)
   const piece = body.piece ? body.piece.toString().slice(0, 300) : null
 
@@ -27,55 +29,61 @@ export default async function handler(req, res) {
   }
 
   const sql = getSql()
-  const resendKey = process.env.RESEND_API_KEY
-  if (!sql || !resendKey) {
-    console.error('[stoa] request capture not configured:', { db: !!sql, resend: !!resendKey })
+  if (!sql) {
+    console.error('[stoa] request capture not configured: no database')
     return res.status(503).json({ error: 'Request capture is not configured yet' })
   }
 
   try {
     await ensureSchema(sql)
-    await sql`insert into stoa_requests (email, role, piece) values (${email}, ${role || null}, ${piece})`
+    // Idempotent: one row per email+piece, so a visitor retry never duplicates.
+    const existing = await sql`select id from stoa_requests where email = ${email} and piece is not distinct from ${piece} limit 1`
+    if (existing.length === 0) {
+      await sql`insert into stoa_requests (email, role, piece) values (${email}, ${role || null}, ${piece})`
+    } else if (role) {
+      await sql`update stoa_requests set role = ${role} where id = ${existing[0].id}`
+    }
   } catch (err) {
     console.error('[stoa] failed to store request:', err)
     return res.status(502).json({ error: 'Could not save the request' })
   }
 
-  const subject = `Stoa access request: ${email}`
-  const text = [
-    'New access request on stoacap.com',
-    '',
-    `Email: ${email}`,
-    `Role: ${role || '-'}`,
-    `Piece: ${piece || '(general access)'}`,
-  ].join('\n')
-
-  let accepted = false
-  try {
-    const resp = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${resendKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: 'Stoa Requests <alerts@astori.vc>',
-        to: [process.env.NOTIFICATION_EMAIL || 'mattia@astori.vc'],
-        subject,
-        text,
-      }),
-    })
-    accepted = resp.ok
-    if (!resp.ok) {
-      const detail = await resp.text().catch(() => '')
-      console.error(`[stoa] resend rejected alert: ${resp.status} ${detail.slice(0, 300)}`)
+  // The request is now durably stored. Alert Mattia best-effort; a failure
+  // here is logged (Vercel function logs) and visible via admin status, but
+  // it does not change the visitor's confirmed request.
+  const resendKey = process.env.RESEND_API_KEY
+  if (!resendKey) {
+    console.error('[stoa] RESEND_API_KEY not set; alert skipped for stored request from', email)
+  } else {
+    const subject = `Stoa access request: ${email}`
+    const text = [
+      'New access request on stoacap.com',
+      '',
+      `Email: ${email}`,
+      `Role: ${role || '-'}`,
+      `Piece: ${piece || '(general access)'}`,
+    ].join('\n')
+    try {
+      const resp = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${resendKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: 'Stoa Requests <alerts@astori.vc>',
+          to: [process.env.NOTIFICATION_EMAIL || 'mattia@astori.vc'],
+          subject,
+          text,
+        }),
+      })
+      if (!resp.ok) {
+        const detail = await resp.text().catch(() => '')
+        console.error(`[stoa] resend rejected alert for stored request: ${resp.status} ${detail.slice(0, 300)}`)
+      }
+    } catch (err) {
+      console.error('[stoa] alert email failed for stored request:', err)
     }
-  } catch (err) {
-    console.error('[stoa] alert email failed:', err)
-  }
-
-  if (!accepted) {
-    return res.status(502).json({ error: 'Could not send the request' })
   }
 
   return res.status(200).json({ ok: true })
