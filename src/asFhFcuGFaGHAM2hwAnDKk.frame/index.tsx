@@ -76,7 +76,7 @@ export default function StoaHome(props: Props) {
       </div>
 
       {/* Landscape */}
-      <main ref={stage} className="relative min-h-0 flex-1 overflow-hidden">
+      <main ref={stage} className="relative min-h-0 flex-1 overflow-x-clip overflow-y-hidden">
         {/* Painting, always filling the space; cropped to keep the stoa and harbour in view */}
         <div className="absolute" style={cover}>
           <img
