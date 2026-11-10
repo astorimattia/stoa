@@ -94,20 +94,6 @@ export default async function handler(req, res) {
     const email = (body.email || '').toString().trim().toLowerCase().slice(0, 200)
     const cfg = PIECES[pieceSlug]
 
-    // TEMPORARY one-off fixture cleanup (branch stoa-fixture-cleanup only -
-    // do not merge): deletes only the synthetic test rows, never arbitrary data.
-    if (action === 'purge-fixture') {
-      const FIXTURE = 'stoa-test-20261109@example.com'
-      if (email !== FIXTURE || !cfg) {
-        await audit(sql, ip, action || 'invalid', null, false)
-        return res.status(400).json({ error: 'Unknown action, piece or email' })
-      }
-      const del = await sql`delete from stoa_requests where email = ${FIXTURE} returning id`
-      await sql`delete from stoa_admin_throttle where ip = ${ip}`
-      await audit(sql, ip, action, FIXTURE, true)
-      return res.status(200).json({ deleted: del.length })
-    }
-
     if (!['approve', 'revoke', 'expire', 'status'].includes(action) || !cfg || !/^\S+@\S+\.\S+$/.test(email)) {
       await audit(sql, ip, action || 'invalid', null, false)
       return res.status(400).json({ error: 'Unknown action, piece or email' })
