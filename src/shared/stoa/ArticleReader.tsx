@@ -99,12 +99,12 @@ function Gate({ meta, linkRejected }: { meta: ReaderMeta; linkRejected: boolean 
         </p>
       )}
       <p className="mb-8 text-[16px] leading-[1.8] text-paper/75">
-        This piece is shared with approved readers. Request access below; if the request is
-        approved, a reading link arrives by email.
+        This piece is shared with approved readers. Request access below; if your request is
+        approved, we'll be in touch.
       </p>
       {done ? (
         <p className="text-[15px] leading-relaxed text-paper/80">
-          Request received. If it's approved, your reading link will arrive by email.
+          Thank you. If your request is approved, we'll be in touch.
         </p>
       ) : (
         <div className="space-y-5">
