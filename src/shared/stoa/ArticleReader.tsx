@@ -144,7 +144,7 @@ function Gate({ meta, onBack, linkRejected }: { meta: ReaderMeta; onBack?: () =>
               <div>
                 <h3 className="text-2xl">Thank you.</h3>
                 <p className="mt-1 font-sans text-sm leading-relaxed text-muted">
-                  We'll be in touch from research@stoacap.com.
+                  We'll be in touch.
                 </p>
               </div>
             ) : (
@@ -165,7 +165,6 @@ function Gate({ meta, onBack, linkRejected }: { meta: ReaderMeta; onBack?: () =>
                 <input
                   id="reader-email"
                   type="email"
-                  disabled
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -174,12 +173,10 @@ function Gate({ meta, onBack, linkRejected }: { meta: ReaderMeta; onBack?: () =>
                 />
                 <button
                   type="submit"
-                  disabled
                   className="mt-3 w-full bg-ink px-4 py-2.5 font-sans text-sm font-medium text-paper transition-[background-color,transform] duration-150 ease-soft hover:bg-ink/85 active:scale-[0.98] active:duration-100 disabled:opacity-60"
                 >
                   {sending ? 'Sending…' : 'Send request'}
                 </button>
-                <p className="mt-3 font-sans text-sm leading-relaxed text-muted">Requests are temporarily unavailable.</p>
                 {error && <p className="mt-3 font-sans text-sm leading-relaxed text-accent">{error}</p>}
               </form>
             )}
