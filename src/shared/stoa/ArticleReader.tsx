@@ -70,7 +70,7 @@ export default function ArticleReader({ memo, onBack }: { memo: Memo; onBack: ()
         {memo.sections.map((s, i) => (
           <section key={s.id} id={`section-${s.id}`} className="mb-16 scroll-mt-24">
             <h2 className="mb-8 font-serif text-2xl leading-tight md:text-3xl">{sectionLabel(s, i)}</h2>
-            {s.paragraphs.map((p, pi) => (
+            {s.paragraphs && s.paragraphs.map((p, pi) => (
               <p key={pi} className="mb-6 text-[16px] leading-[1.8] text-paper/75">
                 {p}
               </p>
