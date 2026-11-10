@@ -169,7 +169,6 @@ export default function StoaHome(props: Props) {
                       <input
                         id="stoa-email"
                         type="email"
-                        disabled
                         required
                         value={value}
                         onChange={(e) => setValue(e.target.value)}
@@ -178,12 +177,11 @@ export default function StoaHome(props: Props) {
                       />
                       <button
                         type="submit"
-                        disabled
                         className="mt-6 w-full bg-paper px-4 py-2.5 text-sm font-medium text-ink transition-[background-color,transform] duration-150 ease-soft hover:bg-paper/90 active:scale-[0.98] active:duration-100 disabled:opacity-60"
                       >
                         {sending ? 'Sending…' : 'Send request'}
                       </button>
-                      <p className="mt-3 text-sm leading-relaxed text-paper/45">Requests are temporarily unavailable.</p>
+                      {sendError && <p className="mt-3 text-sm leading-relaxed text-paper/60">{sendError}</p>}
                     </form>
                   )}
 
@@ -191,7 +189,7 @@ export default function StoaHome(props: Props) {
                     <div>
                       <h2 className="font-serif text-2xl font-light">Thank you.</h2>
                       <p className="mt-2 text-sm leading-relaxed text-paper/60">
-                        We'll be in touch from research@stoacap.com.
+                        We'll be in touch.
                       </p>
                     </div>
                   )}
