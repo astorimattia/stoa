@@ -1,5 +1,5 @@
 // Shared Neon access + idempotent schema bootstrap for the Stoa request
-// flow. DATABASE_URL is set on the project by the Vercel Neon integration
+// flow. Article content lives in a sensitive env var, not in the database. DATABASE_URL is set on the project by the Vercel Neon integration
 // (sensitive env - never readable via API, only at runtime here).
 
 import { neon } from '@neondatabase/serverless'
@@ -26,10 +26,6 @@ export function ensureSchema(sql) {
         expires_at timestamptz,
         revoked_at timestamptz,
         created_at timestamptz not null default now()
-      )`
-      await sql`create table if not exists stoa_articles (
-        piece text primary key,
-        content jsonb not null
       )`
     })().catch((err) => {
       schemaReady = null
