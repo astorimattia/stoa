@@ -11,6 +11,7 @@ export type Memo = {
   author: string
   date: string
   subtitle?: string
+  disclosure?: string
   sections: MemoSection[]
 }
 
@@ -54,6 +55,7 @@ function Footer() {
           Astori Ventures
         </a>
       </span>
+      <span>Nothing here is investment advice.</span>
     </footer>
   )
 }
@@ -274,6 +276,10 @@ export default function ArticleReader({ meta, onBack }: { meta: ReaderMeta; onBa
               ))}
             </section>
           ))}
+
+          <p className="mt-16 border-t border-rule pt-5 font-sans text-xs leading-relaxed text-muted">
+            {memo.disclosure ? `Disclosure: ${memo.disclosure} ` : ''}Stoa is published by Astori Ventures for information only and is not investment advice.
+          </p>
         </article>
       </div>
       <Footer />
