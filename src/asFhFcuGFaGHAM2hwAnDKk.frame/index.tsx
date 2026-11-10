@@ -3,7 +3,6 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { ArrowRight, Lock } from 'lucide-react'
 
 import { issues } from '../shared/stoa/issues'
-import { markets } from '../shared/stoa/markets'
 import { RoleChoice, type Role } from '../shared/stoa/RoleChoice'
 
 export const args = {
@@ -27,7 +26,6 @@ export default function StoaHome(props: Props) {
   const [panel, setPanel] = useState(state)
   const [piece, setPiece] = useState<string | null>(null)
   const [value, setValue] = useState(email)
-  const [hovered, setHovered] = useState<string | null>(null)
   const [role, setRole] = useState<Role | null>(null)
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
@@ -79,57 +77,13 @@ export default function StoaHome(props: Props) {
 
       {/* Landscape */}
       <main ref={stage} className="relative min-h-0 flex-1 overflow-hidden">
-        {/* Painting, always filling the space; cropped so every market spot stays in view */}
-        <div className="absolute" style={cover} onPointerUp={(e) => e.pointerType !== 'mouse' && setHovered(null)}>
+        {/* Painting, always filling the space; cropped to keep the stoa and harbour in view */}
+        <div className="absolute" style={cover}>
           <img
             src={LANDSCAPE}
             alt="A painted valley around a stoa, above the sea."
             className="absolute inset-0 h-full w-full"
           />
-          {/* Unmarked until hovered; then a fine leader line rises from the spot to its name, like a map annotation */}
-          {markets.map((m) => (
-            <div
-              key={m.id}
-              aria-hidden="true"
-              className="absolute"
-              style={{ left: `${m.x}%`, top: `${m.y}%`, width: `${m.w}%`, height: `${m.h}%` }}
-              onPointerEnter={(e) => e.pointerType === 'mouse' && setHovered(m.id)}
-              onPointerLeave={(e) => e.pointerType === 'mouse' && setHovered((h) => (h === m.id ? null : h))}
-              onPointerUp={(e) => {
-                if (e.pointerType === 'mouse') return
-                e.stopPropagation()
-                setHovered((h) => (h === m.id ? null : m.id))
-              }}
-            >
-              <AnimatePresence>
-                {hovered === m.id && (
-                  <div className="pointer-events-none absolute bottom-[55%] left-1/2 flex -translate-x-1/2 flex-col items-center">
-                    <motion.span
-                      initial={reduce ? { opacity: 0 } : { opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0, transition: { duration: 0.2, delay: reduce ? 0 : 0.06, ease: [0.23, 1, 0.32, 1] } }}
-                      exit={{ opacity: 0, transition: { duration: 0.12, ease: [0.23, 1, 0.32, 1] } }}
-                      className="whitespace-nowrap font-serif text-[17px] font-medium leading-none text-white [text-shadow:0_1px_2px_rgba(27,25,21,0.6),0_0_14px_rgba(27,25,21,0.45)]"
-                    >
-                      {m.name}
-                    </motion.span>
-                    <motion.span
-                      initial={reduce ? { opacity: 0 } : { scaleY: 0, opacity: 0 }}
-                      animate={{ scaleY: 1, opacity: 1, transition: { duration: 0.2, ease: [0.23, 1, 0.32, 1] } }}
-                      exit={{ opacity: 0, transition: { duration: 0.12, ease: [0.23, 1, 0.32, 1] } }}
-                      style={{ transformOrigin: 'bottom' }}
-                      className="mt-2 block h-8 w-px bg-white/85 shadow-[0_0_3px_rgba(27,25,21,0.5)]"
-                    />
-                    <motion.span
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1, transition: { duration: 0.12 } }}
-                      exit={{ opacity: 0, transition: { duration: 0.12 } }}
-                      className="block h-1.5 w-1.5 rounded-full bg-white shadow-[0_0_0_2px_rgba(27,25,21,0.25)]"
-                    />
-                  </div>
-                )}
-              </AnimatePresence>
-            </div>
-          ))}
         </div>
 
         {/* Top row */}
@@ -275,15 +229,10 @@ export default function StoaHome(props: Props) {
 
 /** The painting's aspect ratio. */
 const RATIO = 16 / 9
-/** The band of the painting the market spots sit in, in % of the image, with a little margin. */
-const BAND = {
-  x0: Math.min(...markets.map((m) => m.x)) - 1,
-  x1: Math.max(...markets.map((m) => m.x + m.w)) + 1,
-  y0: Math.min(...markets.map((m) => m.y)) - 2,
-  y1: Math.max(...markets.map((m) => m.y + m.h)) + 2,
-}
+/** The band of the painting to keep in view: the stoa, the fields and the harbour, in % of the image. */
+const BAND = { x0: 20, x1: 85, y0: 30, y1: 75 }
 
-/** Size the painting to cover the stage, choosing the crop so the market band stays visible. */
+/** Size the painting to cover the stage, choosing the crop so that band stays visible. */
 function useCover(ref: React.RefObject<HTMLElement | null>): React.CSSProperties {
   const [box, setBox] = useState({ w: 1280, h: 720 })
   useLayoutEffect(() => {
