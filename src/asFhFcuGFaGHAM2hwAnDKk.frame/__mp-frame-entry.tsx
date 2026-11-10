@@ -2,7 +2,6 @@
 import React, { type ComponentType, useEffect, useState } from 'react'
 import ReactDOM from 'react-dom/client'
 import ArticleReader from '../shared/stoa/ArticleReader'
-import { ycS26ScreeningMemo } from '../shared/stoa/articles/yc-s26-screening'
 
 declare global {
   interface ImportMeta {
@@ -34,6 +33,18 @@ if (embedded) {
   }
 }
 
+// Reader route meta only - the article text itself never ships in this bundle.
+// The reader fetches content from /api/article, which releases it only to a
+// valid per-requester approval token (request-approved access).
+const YC_S26_META = {
+  slug: 'yc-s26-screening',
+  title: 'S26 Screening',
+  entity: 'ASTORI VENTURES',
+  author: 'MATTIA ASTORI',
+  date: '1 SEP 2026',
+  subtitle: 'Originally sent as an email to friends close to YC, nine days before S26 Demo Day.',
+}
+
 /** Exported so this module is a Fast Refresh boundary, as the prototype's is. */
 export function Root() {
   useReportBackground()
@@ -46,7 +57,7 @@ export function Root() {
   if (readerOpen) {
     return (
       <ArticleReader
-        memo={ycS26ScreeningMemo}
+        meta={YC_S26_META}
         onBack={() => {
           window.history.pushState({}, '', '/')
           setReaderOpen(false)
