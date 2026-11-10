@@ -66,7 +66,7 @@ export default function StoaHome(props: Props) {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-ink font-sans text-ink">
+    <div className="stoa-fill flex flex-col bg-ink font-sans text-ink">
       {/* Notice strip */}
       <div className="flex select-none items-center gap-3 px-4 py-2 text-[13px] text-paper sm:px-5">
         <span className="min-w-0 truncate text-paper/75">

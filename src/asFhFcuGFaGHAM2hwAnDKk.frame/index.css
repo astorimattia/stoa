@@ -32,3 +32,11 @@ label[for],
 select {
   cursor: pointer;
 }
+
+/* Full-height stage: 100dvh keeps the page exactly the visible height on
+   mobile browsers as toolbars show/hide (100vh there is the LARGE viewport,
+   which made the page scrollable); 100vh is the fallback for older engines. */
+.stoa-fill {
+  height: 100vh;
+  height: 100dvh;
+}
