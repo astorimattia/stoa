@@ -3,13 +3,11 @@
 // A reading link carries a per-requester approval token; this endpoint
 // verifies it server-side (approved, not revoked, not expired, via Neon)
 // before releasing content. Approvals are granted one by one by Mattia -
-// nothing here auto-approves.
+// nothing here auto-approves. Tokens are stored as SHA-256 hashes only.
 
+import { createHash } from 'node:crypto'
 import { getSql, ensureSchema } from './_stoa-db.js'
-
-// Reader slugs to the piece title stored on the request row, plus the env var
-// holding that piece's content JSON.
-const PIECES = { 'yc-s26-screening': { title: 'S26 Screening', envKey: 'ARTICLE_YC_S26' } }
+import { PIECES } from './_stoa-pieces.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -31,10 +29,11 @@ export default async function handler(req, res) {
 
   try {
     await ensureSchema(sql)
+    const tokenHash = createHash('sha256').update(token).digest('hex')
     const rows = await sql`
       select status, expires_at, revoked_at
       from stoa_requests
-      where token = ${token} and piece = ${cfg.title}
+      where token_hash = ${tokenHash} and piece = ${cfg.title}
       limit 1
     `
     const r = rows[0]
