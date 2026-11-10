@@ -46,4 +46,13 @@ export const issues: Issue[] = [
     date: 'Oct 2026',
     readTime: '18 min',
   },
+  {
+    number: 0,
+    slug: 'yc-s26-screening',
+    title: 'S26 Screening',
+    dek: 'Where YC is putting its money in S26: agents, industrials and the less obvious bets, screened by founder signal nine days before Demo Day.',
+    market: 'YC',
+    date: 'Sep 2026',
+    readTime: '8 min',
+  },
 ]
