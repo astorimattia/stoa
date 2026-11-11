@@ -30,7 +30,7 @@ type LoadState =
   | { kind: 'ready'; memo: Memo }
   | { kind: 'unavailable' }
 
-const PLATE = '/landscape.jpg'
+const PLATE = '/2-stoa-issue.jpg'
 
 /** Notice strip, as on the home. */
 function Strip({ onBack }: { onBack?: () => void }) {
@@ -63,7 +63,7 @@ function Footer() {
 function Plate() {
   return (
     <figure className="relative">
-      <img src={PLATE} alt="A painted valley around a stoa, above the sea." className="aspect-[16/9] w-full object-cover sm:aspect-[21/9] lg:max-h-[460px]" />
+      <img src={PLATE} alt="An oil study of stone-walled terraces, olives and cypresses on a hillside above the sea." className="aspect-[16/9] w-full object-cover object-[50%_65%] sm:aspect-[21/9] lg:max-h-[460px]" />
     </figure>
   )
 }
