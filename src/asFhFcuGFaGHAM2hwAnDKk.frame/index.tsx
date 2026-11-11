@@ -19,7 +19,7 @@ type Props = Partial<typeof args> & {
   onRequest?: (email: string, piece: string | null, role: Role | null) => void
 }
 
-const LANDSCAPE = '/landscape.jpg'
+const LANDSCAPE = '/1-stoa-home.jpg'
 
 export default function StoaHome(props: Props) {
   const { state, email, onRequest } = { ...args, ...props }
@@ -81,7 +81,7 @@ export default function StoaHome(props: Props) {
         <div className="absolute" style={cover}>
           <img
             src={LANDSCAPE}
-            alt="A painted valley around a stoa, above the sea."
+            alt="An oil study of a stoa on a stone terrace above the sea, among olives and cypresses."
             className="absolute inset-0 h-full w-full"
           />
         </div>
@@ -228,7 +228,7 @@ export default function StoaHome(props: Props) {
 /** The painting's aspect ratio. */
 const RATIO = 16 / 9
 /** The band of the painting to keep in view: the stoa, the fields and the harbour, in % of the image. */
-const BAND = { x0: 20, x1: 85, y0: 30, y1: 75 }
+const BAND = { x0: 30, x1: 90, y0: 25, y1: 65 }
 
 /** Size the painting to cover the stage, choosing the crop so that band stays visible. */
 function useCover(ref: React.RefObject<HTMLElement | null>): React.CSSProperties {
