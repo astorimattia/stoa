@@ -16,8 +16,7 @@
 
 ## Firm Structure
 
-- **Astori Ventures LLC** — Parent entity and investment firm, doing business as Stoa Capital
-- **Opus Advisors LLC** — Wholly-owned subsidiary; SEC Exempt Reporting Adviser; handles investment advisory and fund management
+- **Opus Advisors LLC** — SEC Exempt Reporting Adviser; handles investment advisory and fund management
 - **Alternative Markets LLC** — Member FINRA/SIPC; handles securities brokerage activities (separate entity)
 
 ## Investment Strategy
@@ -163,7 +162,7 @@ Institutional investors in portfolio companies from transactions executed by Mat
 
 Mattia Astori is a Registered Representative of Alternative Markets LLC, member FINRA/SIPC. Registration and disciplinary history are available via FINRA BrokerCheck.
 
-Securities brokerage activities are conducted through Alternative Markets LLC. Investment advisory and fund management activities are conducted through Opus Advisors LLC, a wholly-owned subsidiary of Astori Ventures LLC (doing business as Stoa Capital) and a Securities and Exchange Commission Exempt Reporting Adviser. Astori Ventures LLC and Opus Advisors LLC are separate from Alternative Markets LLC and are not broker-dealers.
+Securities brokerage activities are conducted through Alternative Markets LLC. Investment advisory and fund management activities are conducted through Opus Advisors LLC, a Securities and Exchange Commission Exempt Reporting Adviser. Opus Advisors LLC is separate from Alternative Markets LLC and is not a broker-dealer.
 
 This content is for informational purposes only and does not constitute an offer to sell or solicitation of an offer to buy any securities. Investments in private companies are speculative and illiquid, involve a high degree of risk including total loss of capital, have no public market and an indefinite holding period, and are available only to eligible investors. Valuations shown are estimates and may not reflect realizable value. Past performance is not indicative of future results.
 
