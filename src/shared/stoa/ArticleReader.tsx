@@ -49,12 +49,7 @@ function Strip({ onBack }: { onBack?: () => void }) {
 function Footer() {
   return (
     <footer className="flex select-none flex-wrap items-center justify-between gap-x-6 gap-y-1 border-t border-paper/10 bg-ink px-4 py-2.5 font-sans text-xs text-paper/70 sm:px-5">
-      <span>
-        © 2026 Stoa by{' '}
-        <a href="https://astori.vc" target="_blank" rel="noreferrer" className="text-paper/90 underline decoration-paper/30 underline-offset-2 transition-colors duration-150 hover:decoration-paper">
-          Astori Ventures
-        </a>
-      </span>
+      <span>© 2026 Stoa</span>
       <span>Nothing here is investment advice.</span>
     </footer>
   )
@@ -275,7 +270,7 @@ export default function ArticleReader({ meta, onBack }: { meta: ReaderMeta; onBa
           ))}
 
           <p className="mt-16 border-t border-rule pt-5 font-sans text-xs leading-relaxed text-muted">
-            {memo.disclosure ? `Disclosure: ${memo.disclosure} ` : ''}Stoa is published by Astori Ventures for information only and is not investment advice.
+            {memo.disclosure ? `Disclosure: ${memo.disclosure} ` : ''}Stoa is published for information only and is not investment advice.
           </p>
         </article>
       </div>
