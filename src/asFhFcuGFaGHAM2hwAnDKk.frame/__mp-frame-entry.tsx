@@ -39,7 +39,7 @@ if (embedded) {
 const YC_S26_META = {
   slug: 'yc-s26-screening',
   title: 'S26 Screening',
-  entity: 'ASTORI VENTURES',
+  entity: 'STOA',
   author: 'MATTIA ASTORI',
   date: '1 SEP 2026',
   subtitle: 'Originally sent as an email to friends close to YC, nine days before S26 Demo Day.',
@@ -140,4 +140,3 @@ if (rootEl && !hot?.data.root) {
   root.render(<Root />)
   if (hot) hot.data.root = root
 }
-
