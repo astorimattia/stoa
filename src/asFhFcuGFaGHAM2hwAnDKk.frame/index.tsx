@@ -131,6 +131,10 @@ export default function StoaHome(props: Props) {
                         <li key={issue.slug} className="border-t border-paper/10 first:border-t-0">
                           <button
                             onClick={() => {
+                              if (issue.public) {
+                                window.location.href = `/research/${issue.slug}`
+                                return
+                              }
                               setPiece(issue.title)
                               setPanel('request')
                             }}
@@ -145,7 +149,9 @@ export default function StoaHome(props: Props) {
                                 <span>{issue.date}</span>
                               </span>
                             </span>
-                            <Lock className="mt-1.5 h-3.5 w-3.5 shrink-0 text-paper/30 transition-colors duration-150 ease-soft group-hover:text-paper/80" strokeWidth={1.5} />
+                            {!issue.public && (
+                              <Lock className="mt-1.5 h-3.5 w-3.5 shrink-0 text-paper/30 transition-colors duration-150 ease-soft group-hover:text-paper/80" strokeWidth={1.5} />
+                            )}
                           </button>
                         </li>
                       ))}
