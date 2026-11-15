@@ -2,6 +2,8 @@
 import React, { type ComponentType, useEffect, useState } from 'react'
 import ReactDOM from 'react-dom/client'
 import ArticleReader from '../shared/stoa/ArticleReader'
+import AdminDashboard from '../shared/stoa/AdminDashboard'
+import AuthorProfile, { AUTHORS } from '../shared/stoa/AuthorProfile'
 
 declare global {
   interface ImportMeta {
@@ -34,15 +36,39 @@ if (embedded) {
 }
 
 // Reader route meta only - the article text itself never ships in this bundle.
-// The reader fetches content from /api/article, which releases it only to a
-// valid per-requester approval token (request-approved access).
-const YC_S26_META = {
-  slug: 'yc-s26-screening',
-  title: 'S26 Screening',
-  entity: 'STOA',
-  author: 'MATTIA ASTORI',
-  date: '1 SEP 2026',
-  subtitle: 'Originally sent as an email to friends close to YC, nine days before S26 Demo Day.',
+// The reader fetches content from /api/article, which releases gated pieces
+// only to a valid per-requester approval token (request-approved access).
+// Pieces marked public ship openly.
+const READER_ROUTES: Record<string, {
+  slug: string
+  title: string
+  entity: string
+  author: string
+  authorSlug?: string
+  date: string
+  subtitle?: string
+  public?: boolean
+  cover?: string
+}> = {
+  '/research/yc-s26-screening': {
+    slug: 'yc-s26-screening',
+    title: 'S26 Screening',
+    entity: 'STOA',
+    author: 'MATTIA ASTORI',
+    date: '1 SEP 2026',
+    subtitle: 'Originally sent as an email to friends close to YC, nine days before S26 Demo Day.',
+  },
+  '/research/elections-vc': {
+    slug: 'elections-vc',
+    title: 'Do US election results have an impact on venture capital?',
+    entity: 'STOA',
+    author: 'DINKI',
+    authorSlug: 'dinki',
+    date: '13 NOV 2026',
+    subtitle: 'I checked the last 19 federal elections against 30 years of venture data. The results surprised me.',
+    public: true,
+    cover: '/articles/elections-vc/cover.png',
+  },
 }
 
 /** Exported so this module is a Fast Refresh boundary, as the prototype's is. */
@@ -50,14 +76,20 @@ export function Root() {
   useReportBackground()
   const Frame = frame['./index.tsx']?.default
   const live = useLiveProps(idAfter(window.location.pathname, '/frames/'))
-  // Direct-reader route: /research/yc-s26-screening renders the article view.
-  const [readerOpen, setReaderOpen] = useState(
-    () => typeof window !== 'undefined' && window.location.pathname === '/research/yc-s26-screening'
-  )
-  if (readerOpen) {
+  const path = typeof window !== 'undefined' ? window.location.pathname : ''
+  // Direct-reader route: /research/<slug> renders the article view.
+  const [readerOpen, setReaderOpen] = useState(() => path in READER_ROUTES)
+  if (path === '/admin') {
+    return <AdminDashboard />
+  }
+  const authorSlug = path.startsWith('/research/authors/') ? path.slice('/research/authors/'.length).replace(/\/$/, '') : ''
+  if (authorSlug && AUTHORS[authorSlug]) {
+    return <AuthorProfile author={AUTHORS[authorSlug]} />
+  }
+  if (readerOpen && READER_ROUTES[path]) {
     return (
       <ArticleReader
-        meta={YC_S26_META}
+        meta={READER_ROUTES[path]}
         onBack={() => {
           window.history.pushState({}, '', '/')
           setReaderOpen(false)
