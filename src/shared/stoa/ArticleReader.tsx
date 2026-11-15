@@ -3,7 +3,18 @@ import { ArrowLeft, Lock } from 'lucide-react'
 import { RoleChoice, type Role } from './RoleChoice'
 
 type MemoItem = { title: string; body: string }
-type MemoSection = { id: string; label: string | null; paragraphs: string[]; items?: MemoItem[] }
+type MemoBlock =
+  | { type: 'p'; text: string }
+  | { type: 'img'; src: string; alt?: string }
+  | { type: 'h3'; text: string }
+  | { type: 'li'; text: string }
+type MemoSection = {
+  id: string
+  label: string | null
+  paragraphs: string[]
+  items?: MemoItem[]
+  blocks?: MemoBlock[]
+}
 export type Memo = {
   slug: string
   title: string
@@ -20,8 +31,13 @@ type ReaderMeta = {
   title: string
   entity: string
   author: string
+  /** When set, the byline links to /research/authors/<slug>. */
+  authorSlug?: string
   date: string
   subtitle?: string
+  /** Public pieces render without a reading link and can swap the plate image. */
+  public?: boolean
+  cover?: string
 }
 
 type LoadState =
@@ -55,10 +71,14 @@ function Footer() {
   )
 }
 
-function Plate() {
+function Plate({ src }: { src?: string }) {
   return (
     <figure className="relative">
-      <img src={PLATE} alt="An oil study of stone-walled terraces, olives and cypresses on a hillside above the sea." className="aspect-[16/9] w-full object-cover object-[50%_65%] sm:aspect-[21/9] lg:max-h-[460px]" />
+      <img
+        src={src || PLATE}
+        alt={src ? 'Cover image for this piece.' : 'An oil study of stone-walled terraces, olives and cypresses on a hillside above the sea.'}
+        className="aspect-[16/9] w-full object-cover object-[50%_65%] sm:aspect-[21/9] lg:max-h-[460px]"
+      />
     </figure>
   )
 }
@@ -78,7 +98,13 @@ function TitleBlock({ meta }: { meta: ReaderMeta }) {
       )}
       <div className="mt-10 max-w-3xl border-t border-rule pt-4 font-sans text-sm text-muted">
         <p className="flex flex-wrap gap-x-5 gap-y-1">
-          <span className="text-ink">{meta.author}</span>
+          {meta.authorSlug ? (
+            <a href={`/research/authors/${meta.authorSlug}`} className="text-ink underline decoration-rule underline-offset-4 transition-colors hover:text-ink/70">
+              {meta.author}
+            </a>
+          ) : (
+            <span className="text-ink">{meta.author}</span>
+          )}
         </p>
       </div>
     </section>
@@ -186,21 +212,23 @@ function Gate({ meta, onBack, linkRejected }: { meta: ReaderMeta; onBack?: () =>
 export default function ArticleReader({ meta, onBack }: { meta: ReaderMeta; onBack?: () => void }) {
   const [state, setState] = useState<LoadState>(() => {
     if (typeof window === 'undefined') return { kind: 'gate', linkRejected: false }
+    if (meta.public) return { kind: 'loading' }
     const t = new URLSearchParams(window.location.search).get('t')
     return t ? { kind: 'loading' } : { kind: 'gate', linkRejected: false }
   })
 
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get('t')
-    if (!t) return
+    if (!t && !meta.public) return
     let cancelled = false
-    fetch(`/api/article?piece=${encodeURIComponent(meta.slug)}&t=${encodeURIComponent(t)}`)
+    const q = t ? `&t=${encodeURIComponent(t)}` : ''
+    fetch(`/api/article?piece=${encodeURIComponent(meta.slug)}${q}`)
       .then(async (res) => {
         if (cancelled) return
         if (res.ok) {
           const data = await res.json()
           setState({ kind: 'ready', memo: data.article as Memo })
-        } else if (res.status === 403 || res.status === 400) {
+        } else if ((res.status === 403 || res.status === 400) && !meta.public) {
           setState({ kind: 'gate', linkRejected: true })
         } else {
           setState({ kind: 'unavailable' })
@@ -210,7 +238,7 @@ export default function ArticleReader({ meta, onBack }: { meta: ReaderMeta; onBa
     return () => {
       cancelled = true
     }
-  }, [meta.slug])
+  }, [meta.slug, meta.public])
 
   if (state.kind === 'loading') {
     return (
@@ -247,7 +275,7 @@ export default function ArticleReader({ meta, onBack }: { meta: ReaderMeta; onBa
   return (
     <div className="min-h-full bg-paper font-serif text-ink">
       <Strip onBack={onBack} />
-      <Plate />
+      <Plate src={meta.cover} />
       <TitleBlock meta={{ ...meta, subtitle: memo.subtitle ?? meta.subtitle }} />
 
       <div className="mx-auto max-w-6xl px-6 pb-24 lg:px-10">
@@ -255,11 +283,37 @@ export default function ArticleReader({ meta, onBack }: { meta: ReaderMeta; onBa
           {memo.sections.map((s) => (
             <section key={s.id} id={s.id} className="mt-14 first:mt-0">
               {s.label && <h2 className="text-3xl font-light tracking-tight">{s.label}</h2>}
-              {(s.paragraphs || []).map((p, i) => (
-                <p key={i} className="mt-5 text-xl leading-[1.65] text-ink/90">
-                  {p}
-                </p>
-              ))}
+              {s.blocks
+                ? s.blocks.map((b, i) => {
+                    if (b.type === 'img')
+                      return (
+                        <figure key={i} className="mt-8">
+                          <img src={b.src} alt={b.alt || 'Chart from the article.'} className="w-full" loading="lazy" />
+                        </figure>
+                      )
+                    if (b.type === 'h3')
+                      return (
+                        <h3 key={i} className="mt-8 text-xl font-medium tracking-tight">
+                          {b.text}
+                        </h3>
+                      )
+                    if (b.type === 'li')
+                      return (
+                        <p key={i} className="mt-5 text-xl leading-[1.65] text-ink/90">
+                          {b.text}
+                        </p>
+                      )
+                    return (
+                      <p key={i} className="mt-5 text-xl leading-[1.65] text-ink/90">
+                        {b.text}
+                      </p>
+                    )
+                  })
+                : (s.paragraphs || []).map((p, i) => (
+                    <p key={i} className="mt-5 text-xl leading-[1.65] text-ink/90">
+                      {p}
+                    </p>
+                  ))}
               {s.items?.map((it) => (
                 <div key={it.title} className="mt-8">
                   <h3 className="text-xl font-medium tracking-tight">{it.title}</h3>
