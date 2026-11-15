@@ -15,7 +15,8 @@
 //
 // GET /api/article?piece=<slug>[&t=<token>]  -> { article }
 // GET /api/article?access=1&t=<token>        -> { pieces: [slug...] } the
-//     slugs this token opens (used by the research list); 403 if none.
+//     slugs this token opens (used by the research list); 403 if the
+//     token is not an active reader or legacy link.
 
 import { createHash } from 'node:crypto'
 import { getSql, ensureSchema } from './_stoa-db.js'
@@ -103,7 +104,7 @@ export default async function handler(req, res) {
           if (tierOf(c) !== 'open' && (await legacyOk(sql, tokenHash, c))) open.push(slug)
         }
       }
-      if (!open.length) return res.status(403).json({ error: 'This reading link is not active' })
+      if (!member && !open.length) return res.status(403).json({ error: 'This reading link is not active' })
       return res.status(200).json({ pieces: open })
     }
 
