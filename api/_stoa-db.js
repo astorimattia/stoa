@@ -4,6 +4,7 @@
 // (sensitive env - never readable via API, only at runtime here).
 
 import { neon } from '@neondatabase/serverless'
+import { PIECES, tierOf } from './_stoa-pieces.js'
 
 let schemaReady = null
 
@@ -47,10 +48,72 @@ export function ensureSchema(sql) {
         target text,
         ok boolean not null
       )`
+      // Readers: one row per person, one reading link (stored as a hash)
+      // that works across every members piece. Restricted pieces also need
+      // a row in stoa_grants. stoa_requests stays the inbox of incoming
+      // requests (pending -> handled) and the legacy per-piece link store.
+      await sql`create table if not exists stoa_readers (
+        email text primary key,
+        role text,
+        status text not null default 'approved',
+        token_hash text unique,
+        approved_at timestamptz,
+        expires_at timestamptz,
+        revoked_at timestamptz,
+        created_at timestamptz not null default now()
+      )`
+      await sql`create table if not exists stoa_grants (
+        email text not null,
+        piece text not null,
+        granted_at timestamptz not null default now(),
+        revoked_at timestamptz,
+        primary key (email, piece)
+      )`
+      await sql`create table if not exists stoa_migrations (
+        name text primary key,
+        ran_at timestamptz not null default now()
+      )`
+      await migrateReaders(sql)
     })().catch((err) => {
       schemaReady = null
       throw err
     })
   }
   return schemaReady
+}
+
+// One-time move from per-piece approvals to readers. Every approved,
+// unexpired, unrevoked stoa_requests row becomes a reader with the SAME
+// token hash and expiry, so existing links keep working unchanged and now
+// open every members piece; rows for a restricted piece also get a grant.
+// Guarded by a marker row so later admin changes are never overwritten.
+async function migrateReaders(sql) {
+  const name = 'readers-v1'
+  const done = await sql`select 1 from stoa_migrations where name = ${name} limit 1`
+  if (done.length) return
+  // Old test rows (cleanup approved by Mattia).
+  await sql`delete from stoa_requests where lower(email) = 'stoa-test-20261115@example.com'`
+  await sql`
+    insert into stoa_readers (email, role, status, token_hash, approved_at, expires_at, revoked_at, created_at)
+    select distinct on (lower(email))
+      lower(email), role, 'approved', token_hash, approved_at, expires_at, null, created_at
+    from stoa_requests
+    where status = 'approved' and revoked_at is null and token_hash is not null
+      and (expires_at is null or expires_at > now())
+    order by lower(email), expires_at desc nulls first, approved_at desc
+    on conflict do nothing
+  `
+  for (const [slug, cfg] of Object.entries(PIECES)) {
+    if (tierOf(cfg) !== 'restricted') continue
+    await sql`
+      insert into stoa_grants (email, piece, granted_at)
+      select distinct lower(email), ${slug}, now()
+      from stoa_requests
+      where status = 'approved' and revoked_at is null and token_hash is not null
+        and (expires_at is null or expires_at > now())
+        and (piece = ${cfg.title} or piece = ${slug})
+      on conflict do nothing
+    `
+  }
+  await sql`insert into stoa_migrations (name) values (${name}) on conflict do nothing`
 }

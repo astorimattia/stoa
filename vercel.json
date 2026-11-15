@@ -29,6 +29,10 @@
   ],
   "rewrites": [
     {
+      "source": "/research",
+      "destination": "/index.html"
+    },
+    {
       "source": "/research/yc-s26-screening",
       "destination": "/index.html"
     },

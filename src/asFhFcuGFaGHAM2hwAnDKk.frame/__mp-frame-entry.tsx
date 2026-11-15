@@ -4,6 +4,7 @@ import ReactDOM from 'react-dom/client'
 import ArticleReader from '../shared/stoa/ArticleReader'
 import AdminDashboard from '../shared/stoa/AdminDashboard'
 import AuthorProfile, { AUTHORS } from '../shared/stoa/AuthorProfile'
+import { captureReaderToken } from '../shared/stoa/readerToken'
 
 declare global {
   interface ImportMeta {
@@ -76,7 +77,9 @@ export function Root() {
   useReportBackground()
   const Frame = frame['./index.tsx']?.default
   const live = useLiveProps(idAfter(window.location.pathname, '/frames/'))
-  const path = typeof window !== 'undefined' ? window.location.pathname : ''
+  const path = typeof window !== 'undefined' ? window.location.pathname.replace(/(.)\/$/, '$1') : ''
+  // Keep a reading link from any ?t= URL on this device (one link per reader).
+  useState(() => (path !== '/admin' ? captureReaderToken() : null))
   // Direct-reader route: /research/<slug> renders the article view.
   const [readerOpen, setReaderOpen] = useState(() => path in READER_ROUTES)
   if (path === '/admin') {
@@ -97,6 +100,9 @@ export function Root() {
       />
     )
   }
+  // /research (the link a reader gets when approved without a piece) opens
+  // the home with the research list showing.
+  if (path === '/research' && Frame) return <Frame {...live} state="research" />
   return Frame ? <Frame {...live} /> : <Blank />
 }
 

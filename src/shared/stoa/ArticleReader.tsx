@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Lock } from 'lucide-react'
 import { RoleChoice, type Role } from './RoleChoice'
+import { getReaderToken } from './readerToken'
+
+/** The reading link for this visit: the URL's, else the one kept on this device. */
+const currentToken = () =>
+  (typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('t')) || getReaderToken()
 
 type MemoItem = { title: string; body: string }
 type MemoBlock =
@@ -176,7 +181,7 @@ function Gate({ meta, onBack, linkRejected }: { meta: ReaderMeta; onBack?: () =>
                 </p>
                 {linkRejected && (
                   <p className="mt-3 font-sans text-sm leading-relaxed text-accent">
-                    This reading link is not active.
+                    Your reading link does not open this piece. Request it below.
                   </p>
                 )}
                 <div className="font-sans">
@@ -213,12 +218,12 @@ export default function ArticleReader({ meta, onBack }: { meta: ReaderMeta; onBa
   const [state, setState] = useState<LoadState>(() => {
     if (typeof window === 'undefined') return { kind: 'gate', linkRejected: false }
     if (meta.public) return { kind: 'loading' }
-    const t = new URLSearchParams(window.location.search).get('t')
+    const t = currentToken()
     return t ? { kind: 'loading' } : { kind: 'gate', linkRejected: false }
   })
 
   useEffect(() => {
-    const t = new URLSearchParams(window.location.search).get('t')
+    const t = meta.public ? null : currentToken()
     if (!t && !meta.public) return
     let cancelled = false
     const q = t ? `&t=${encodeURIComponent(t)}` : ''

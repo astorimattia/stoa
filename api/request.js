@@ -36,8 +36,10 @@ export default async function handler(req, res) {
 
   try {
     await ensureSchema(sql)
-    // Idempotent: one row per email+piece, so a visitor retry never duplicates.
-    const existing = await sql`select id from stoa_requests where email = ${email} and piece is not distinct from ${piece} limit 1`
+    // Idempotent: one open (pending) row per email+piece, so a visitor retry
+    // never duplicates; a new ask after an earlier one was handled lands in
+    // the inbox again.
+    const existing = await sql`select id from stoa_requests where email = ${email} and piece is not distinct from ${piece} and status = 'pending' limit 1`
     if (existing.length === 0) {
       await sql`insert into stoa_requests (email, role, piece) values (${email}, ${role || null}, ${piece})`
     } else if (role) {
