@@ -6,10 +6,22 @@ export type Issue = {
   market: string
   date: string
   readTime: string
+  /** Public pieces open directly at /research/<slug>; the rest stay request-gated. */
+  public?: boolean
 }
 
-/** Stoa's launch set — newest first. Applied Intuition leads. */
+/** Stoa's launch set — newest first. */
 export const issues: Issue[] = [
+  {
+    number: 5,
+    slug: 'elections-vc',
+    title: 'Do US election results have an impact on venture capital?',
+    dek: 'I checked the last 19 federal elections against 30 years of venture data. The results surprised me.',
+    market: 'Venture',
+    date: 'Nov 2026',
+    readTime: '9 min',
+    public: true,
+  },
   {
     number: 4,
     slug: 'applied-intuition',
