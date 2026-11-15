@@ -3,6 +3,11 @@
 // this table, so an admin call can only ever touch a known piece.
 export const PIECES = {
   'yc-s26-screening': { title: 'S26 Screening', envKey: 'ARTICLE_YC_S26' },
+  'elections-vc': {
+    title: 'Do US election results have an impact on venture capital?',
+    envKey: 'ARTICLE_ELECTIONS_VC',
+    public: true,
+  },
 }
 
 export const DEFAULT_LINK_DAYS = 30
