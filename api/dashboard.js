@@ -7,6 +7,7 @@
 
 import { createHash, timingSafeEqual } from 'node:crypto'
 import { getSql, ensureSchema } from './_stoa-db.js'
+import { PIECES, DEFAULT_LINK_DAYS, MAX_LINK_DAYS } from './_stoa-pieces.js'
 
 const FAIL_WINDOW_MIN = 10
 const MAX_FAILS = 10
@@ -82,7 +83,13 @@ export default async function handler(req, res) {
     }
 
     await sql`insert into stoa_admin_audit (ip, action, target, ok) values (${ip}, 'dashboard', null, true)`.catch(() => {})
-    return res.status(200).json({ totals, requests })
+    const pieces = Object.entries(PIECES).map(([slug, c]) => ({ slug, title: c.title, public: !!c.public }))
+    return res.status(200).json({
+      totals,
+      requests,
+      pieces,
+      linkDays: { default: DEFAULT_LINK_DAYS, max: MAX_LINK_DAYS },
+    })
   } catch (err) {
     console.error('[stoa] dashboard failed:', err)
     return res.status(502).json({ error: 'Temporarily unavailable' })

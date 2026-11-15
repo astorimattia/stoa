@@ -104,7 +104,23 @@ export default async function handler(req, res) {
     if (action === 'approve') {
       const days = Math.min(Math.max(parseInt(body.days, 10) || DEFAULT_LINK_DAYS, 1), MAX_LINK_DAYS)
       const token = randomBytes(24).toString('base64url')
-      const rows = await sql`
+      // Approve the requester's own pending row when there is one (matched by
+      // piece title or slug), so the console shows one row per request.
+      // Otherwise mint a fresh approved row.
+      const updated = await sql`
+        update stoa_requests
+        set status = 'approved', piece = ${cfg.title}, token_hash = ${hash(token)},
+            approved_at = now(), expires_at = now() + make_interval(days => ${days}), revoked_at = null
+        where id = (
+          select id from stoa_requests
+          where email = ${email} and status = 'pending'
+            and (piece = ${cfg.title} or piece = ${pieceSlug} or piece is null)
+          order by (piece is null), created_at desc
+          limit 1
+        )
+        returning id
+      `
+      const rows = updated[0] ? updated : await sql`
         insert into stoa_requests (email, role, piece, status, token_hash, approved_at, expires_at, revoked_at)
         values (${email}, ${null}, ${cfg.title}, 'approved', ${hash(token)}, now(), now() + make_interval(days => ${days}), null)
         on conflict (token_hash) do nothing

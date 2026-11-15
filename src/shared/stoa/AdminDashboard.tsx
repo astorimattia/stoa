@@ -19,7 +19,26 @@ type DashboardData = {
     byPiece: { piece: string; count: number }[]
   }
   requests: StoaRequest[]
+  pieces?: { slug: string; title: string; public: boolean }[]
+  linkDays?: { default: number; max: number }
 }
+
+type Piece = { slug: string; title: string; public: boolean }
+
+// What the console shows: an approved link past its expiry reads as expired.
+function viewStatus(r: StoaRequest): string {
+  if (r.status === 'approved' && r.expires_at && new Date(r.expires_at) <= new Date()) return 'expired'
+  return r.status
+}
+
+function slugFor(piece: string | null, pieces: Piece[]): string {
+  if (!piece) return ''
+  const hit = pieces.find((p) => p.title === piece || p.slug === piece)
+  return hit ? hit.slug : ''
+}
+
+type ApproveTarget = { email: string; slug: string }
+type IssuedLink = { email: string; piece: string; url: string; days: number }
 
 const SECRET_KEY = 'stoa_admin_secret'
 
@@ -44,6 +63,59 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState<string>('all')
+  const [approving, setApproving] = useState<ApproveTarget | null>(null)
+  const [days, setDays] = useState<number>(30)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [issued, setIssued] = useState<IssuedLink | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+
+  const pieces: Piece[] = data?.pieces || []
+  const defaultDays = data?.linkDays?.default || 30
+  const maxDays = data?.linkDays?.max || 365
+
+  // Calls api/admin.js with the session secret. The response (which can
+  // carry a one-time reading link) is held in memory only, never stored.
+  const act = useCallback(
+    async (action: 'approve' | 'revoke' | 'expire', email: string, piece: string, linkDays?: number) => {
+      setBusy(`${action}:${email}:${piece}`)
+      setNotice(null)
+      try {
+        const res = await fetch('/api/admin', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, email, piece, days: linkDays }),
+        })
+        if (res.status === 401) {
+          sessionStorage.removeItem(SECRET_KEY)
+          setSecret('')
+          setData(null)
+          setError('That secret was not accepted.')
+          return
+        }
+        const body = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          setNotice(body.error || `That didn't work (${res.status}).`)
+          return
+        }
+        if (action === 'approve') {
+          setIssued({ email: body.email, piece: body.piece, url: body.url, days: body.expiresInDays })
+          setCopied(false)
+          setApproving(null)
+        } else {
+          setNotice(
+            body.changed ? `${action === 'revoke' ? 'Revoked' : 'Expired'} ${email}.` : `Nothing active to ${action} for ${email}.`
+          )
+        }
+        await load(secret)
+      } catch {
+        setNotice('The admin API is temporarily unavailable.')
+      } finally {
+        setBusy(null)
+      }
+    },
+    [secret]
+  )
 
   const load = useCallback(async (s: string) => {
     setLoading(true)
@@ -74,7 +146,7 @@ export default function AdminDashboard() {
   const rows = useMemo(() => {
     if (!data) return []
     if (filter === 'all') return data.requests
-    return data.requests.filter((r) => r.status === filter)
+    return data.requests.filter((r) => viewStatus(r) === filter)
   }, [data, filter])
 
   if (!secret) {
@@ -140,6 +212,68 @@ export default function AdminDashboard() {
 
       <main className="mx-auto max-w-6xl px-5 py-8 sm:px-8">
         {error && <p className="text-sm text-accent">{error}</p>}
+        {notice && <p className="mb-4 text-sm text-paper/70">{notice}</p>}
+
+        {issued && (
+          <div className="mb-8 border border-emerald-300/30 px-4 py-4">
+            <p className="text-sm text-paper/85">
+              Reading link for {issued.email} ({issued.piece}), valid {issued.days} days. It is shown once: copy it now.
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <input readOnly value={issued.url} onFocus={(e) => e.currentTarget.select()}
+                className="min-w-0 flex-1 border border-paper/20 bg-transparent px-2 py-1.5 font-mono text-xs text-paper/85" />
+              <button
+                onClick={async () => {
+                  try { await navigator.clipboard.writeText(issued.url); setCopied(true) } catch { setCopied(false) }
+                }}
+                className="bg-paper px-3 py-1.5 text-xs font-medium text-ink hover:bg-paper/90"
+              >
+                {copied ? 'Copied' : 'Copy link'}
+              </button>
+              <button onClick={() => setIssued(null)} className="px-2 py-1.5 text-xs text-paper/45 hover:text-paper">
+                Done
+              </button>
+            </div>
+          </div>
+        )}
+
+        {approving && (
+          <form
+            className="mb-8 border border-paper/20 px-4 py-4"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (approving.slug) act('approve', approving.email, approving.slug, days)
+            }}
+          >
+            <p className="text-sm text-paper/85">Approve {approving.email}</p>
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-paper/60">
+              <label className="flex items-center gap-2">
+                Piece
+                <select value={approving.slug} onChange={(e) => setApproving({ ...approving, slug: e.target.value })}
+                  className="border border-paper/20 bg-ink px-2 py-1 text-paper">
+                  {pieces.map((p) => (
+                    <option key={p.slug} value={p.slug}>{p.title}{p.public ? ' (public)' : ''}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex items-center gap-2">
+                Link valid for
+                <input type="number" min={1} max={maxDays} value={days}
+                  onChange={(e) => setDays(Math.min(Math.max(parseInt(e.target.value, 10) || 1, 1), maxDays))}
+                  className="w-20 border border-paper/20 bg-transparent px-2 py-1 text-paper" />
+                days (max {maxDays})
+              </label>
+              <button type="submit" disabled={!!busy || !approving.slug}
+                className="bg-paper px-3 py-1.5 font-medium text-ink hover:bg-paper/90 disabled:opacity-50">
+                {busy ? 'Approving…' : 'Approve and create link'}
+              </button>
+              <button type="button" onClick={() => setApproving(null)} className="text-paper/45 hover:text-paper">
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
+
         {data && (
           <>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -186,7 +320,8 @@ export default function AdminDashboard() {
                     <th className="py-2.5 pr-4 font-normal">Piece</th>
                     <th className="py-2.5 pr-4 font-normal">Status</th>
                     <th className="py-2.5 pr-4 font-normal">Requested</th>
-                    <th className="py-2.5 font-normal">Link expires</th>
+                    <th className="py-2.5 pr-4 font-normal">Link expires</th>
+                    <th className="py-2.5 font-normal text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -195,14 +330,33 @@ export default function AdminDashboard() {
                       <td className="py-3 pr-4 text-paper/85">{r.email}</td>
                       <td className="py-3 pr-4 text-paper/55">{r.role || '—'}</td>
                       <td className="max-w-[220px] truncate py-3 pr-4 text-paper/55">{r.piece || 'Any piece'}</td>
-                      <td className={`py-3 pr-4 capitalize ${statusTone(r.status)}`}>{r.status}</td>
+                      <td className={`py-3 pr-4 capitalize ${statusTone(viewStatus(r))}`}>{viewStatus(r)}</td>
                       <td className="py-3 pr-4 text-paper/55">{fmt(r.created_at)}</td>
-                      <td className="py-3 text-paper/55">{r.status === 'approved' ? fmt(r.expires_at) : '—'}</td>
+                      <td className="py-3 pr-4 text-paper/55">{r.status === 'approved' ? fmt(r.expires_at) : '—'}</td>
+                      <td className="py-3 text-right whitespace-nowrap">
+                        <RowActions
+                          r={r}
+                          slug={slugFor(r.piece, pieces)}
+                          busy={busy}
+                          onApprove={(slug) => {
+                            setApproving({ email: r.email, slug: slug || pieces.find((p) => !p.public)?.slug || pieces[0]?.slug || '' })
+                            setDays(defaultDays)
+                          }}
+                          onRevoke={(slug) => {
+                            if (window.confirm(`Revoke ${r.email}'s reading link for ${r.piece || slug}? The link stops working immediately.`))
+                              act('revoke', r.email, slug)
+                          }}
+                          onExpire={(slug) => {
+                            if (window.confirm(`Expire ${r.email}'s reading link for ${r.piece || slug} now?`))
+                              act('expire', r.email, slug)
+                          }}
+                        />
+                      </td>
                     </tr>
                   ))}
                   {rows.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="py-10 text-center text-sm text-paper/40">
+                      <td colSpan={7} className="py-10 text-center text-sm text-paper/40">
                         No requests yet.
                       </td>
                     </tr>
@@ -224,4 +378,44 @@ function Stat({ label, value }: { label: string; value: number }) {
       <p className="mt-1 text-xs uppercase tracking-[0.14em] text-paper/40">{label}</p>
     </div>
   )
+}
+
+function RowActions({
+  r,
+  slug,
+  busy,
+  onApprove,
+  onRevoke,
+  onExpire,
+}: {
+  r: StoaRequest
+  slug: string
+  busy: string | null
+  onApprove: (slug: string) => void
+  onRevoke: (slug: string) => void
+  onExpire: (slug: string) => void
+}) {
+  const v = viewStatus(r)
+  const btn =
+    'ml-2 border border-paper/20 px-2.5 py-1 text-xs text-paper/70 transition-colors hover:border-paper/50 hover:text-paper disabled:opacity-40'
+  if (v === 'pending') {
+    return (
+      <button className={btn} disabled={!!busy} onClick={() => onApprove(slug)}>
+        Approve
+      </button>
+    )
+  }
+  if (v === 'approved' && slug) {
+    return (
+      <>
+        <button className={btn} disabled={!!busy} onClick={() => onExpire(slug)}>
+          Expire
+        </button>
+        <button className={btn} disabled={!!busy} onClick={() => onRevoke(slug)}>
+          Revoke
+        </button>
+      </>
+    )
+  }
+  return <span className="text-xs text-paper/30">—</span>
 }
