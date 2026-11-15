@@ -17,8 +17,20 @@ export default async function handler(req, res) {
   const piece = (req.query.piece || '').toString().slice(0, 100)
   const token = (req.query.t || '').toString().slice(0, 200)
   const cfg = PIECES[piece]
-  if (!cfg || !token) {
+  if (!cfg || (!token && !cfg.public)) {
     return res.status(400).json({ error: 'Missing piece or token' })
+  }
+
+  // Public pieces ship without a reading link: the content is already
+  // published openly (e.g. on Stoa's Substack), so there is nothing to gate.
+  if (cfg.public) {
+    const pub = process.env[cfg.envKey]
+    if (!pub) {
+      console.error(`[stoa] public piece but ${cfg.envKey} not configured`)
+      return res.status(503).json({ error: 'The reader is not configured yet' })
+    }
+    res.setHeader('Cache-Control', 'no-store')
+    return res.status(200).json({ article: JSON.parse(pub) })
   }
 
   const sql = getSql()
