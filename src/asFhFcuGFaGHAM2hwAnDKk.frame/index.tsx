@@ -62,12 +62,14 @@ export default function StoaHome(props: Props) {
     setSendError(null)
     try {
       onRequest?.(value, piece, role)
-      const res = await fetch('/api/request', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: value, role, piece }),
-      })
-      if (!res.ok) throw new Error(`Request failed: ${res.status}`)
+      {
+        const res = await fetch('/api/request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: value, role, piece }),
+        })
+        if (!res.ok) throw new Error(`Request failed: ${res.status}`)
+      }
       setPanel('requested')
     } catch {
       setSendError('Something went wrong - please try again in a moment.')
@@ -175,10 +177,11 @@ export default function StoaHome(props: Props) {
                       <p className="mt-2 text-sm leading-relaxed text-paper/60">
                         {piece ? (
                           <>
-                            For <span className="text-paper">{piece}</span>. We read every request and reply personally.
+                            For <span className="text-paper">{piece}</span> - and the whole library: approved requests open
+                            every piece. We read every request and reply personally.
                           </>
                         ) : (
-                          'Stoa circulates privately. We read every request and reply personally.'
+                          'Stoa circulates privately. One request covers the whole research library. We read every request and reply personally.'
                         )}
                       </p>
                       <RoleChoice value={role} onChange={setRole} tone="dark" />

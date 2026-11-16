@@ -5,8 +5,12 @@
 // confirmed request, and a retry after an alert failure never creates a
 // duplicate row. Every approval is Mattia's own later action - nothing here
 // grants access.
+//
+// A request always asks for the research library; `piece` only records
+// which piece (if any) brought the visitor in. Demo mode stores the row in
+// the demo tables and never sends the alert email.
 
-import { getSql, ensureSchema } from './_stoa-db.js'
+import { getSql, ensureSchema, T } from './_stoa-db.js'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -37,13 +41,13 @@ export default async function handler(req, res) {
   try {
     await ensureSchema(sql)
     // Idempotent: one open (pending) row per email+piece, so a visitor retry
-    // never duplicates; a new ask after an earlier one was handled lands in
+    // never duplicates; a new ask after an earlier one was approved lands in
     // the inbox again.
-    const existing = await sql`select id from stoa_requests where email = ${email} and piece is not distinct from ${piece} and status = 'pending' limit 1`
+    const existing = await sql`select id from ${T(sql, 'stoa_requests')} where email = ${email} and piece is not distinct from ${piece} and status = 'pending' limit 1`
     if (existing.length === 0) {
-      await sql`insert into stoa_requests (email, role, piece) values (${email}, ${role || null}, ${piece})`
+      await sql`insert into ${T(sql, 'stoa_requests')} (email, role, piece) values (${email}, ${role || null}, ${piece})`
     } else if (role) {
-      await sql`update stoa_requests set role = ${role} where id = ${existing[0].id}`
+      await sql`update ${T(sql, 'stoa_requests')} set role = ${role} where id = ${existing[0].id}`
     }
   } catch (err) {
     console.error('[stoa] failed to store request:', err)
@@ -63,7 +67,7 @@ export default async function handler(req, res) {
       '',
       `Email: ${email}`,
       `Role: ${role || '-'}`,
-      `Piece: ${piece || '(general access)'}`,
+      `Piece: ${piece || '(library access)'}`,
     ].join('\n')
     try {
       const resp = await fetch('https://api.resend.com/emails', {

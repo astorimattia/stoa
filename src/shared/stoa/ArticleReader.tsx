@@ -131,12 +131,14 @@ function Gate({ meta, onBack, linkRejected }: { meta: ReaderMeta; onBack?: () =>
     setSending(true)
     setError(null)
     try {
-      const res = await fetch('/api/request', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, role, piece: meta.title }),
-      })
-      if (!res.ok) throw new Error(`Request failed: ${res.status}`)
+      {
+        const res = await fetch('/api/request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, role, piece: meta.title }),
+        })
+        if (!res.ok) throw new Error(`Request failed: ${res.status}`)
+      }
       setDone(true)
     } catch {
       setError('Something went wrong - please try again in a moment.')

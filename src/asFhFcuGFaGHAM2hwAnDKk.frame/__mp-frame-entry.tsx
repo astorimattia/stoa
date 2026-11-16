@@ -70,6 +70,38 @@ const READER_ROUTES: Record<string, {
     public: true,
     cover: '/articles/elections-vc/cover.png',
   },
+  '/research/applied-intuition': {
+    slug: 'applied-intuition',
+    title: 'Applied Intuition and the software layer of physical autonomy',
+    entity: 'STOA',
+    author: 'MATTIA ASTORI',
+    date: 'NOV 2026',
+    subtitle: 'Why the company that sold simulation to carmakers is now positioned to sell autonomy to anything that moves.',
+  },
+  '/research/space-insurance': {
+    slug: 'space-insurance',
+    title: 'Space insurance is a market of twelve underwriters',
+    entity: 'STOA',
+    author: 'MATTIA ASTORI',
+    date: 'NOV 2026',
+    subtitle: 'Launch cadence has gone vertical while underwriting capacity has not.',
+  },
+  '/research/consensus': {
+    slug: 'consensus',
+    title: 'Consensus and the search for answers you can cite',
+    entity: 'STOA',
+    author: 'MATTIA ASTORI',
+    date: 'OCT 2026',
+    subtitle: 'Academic search is becoming an AI product category.',
+  },
+  '/research/erebor': {
+    slug: 'erebor',
+    title: 'Erebor: a deep dive on the new bank for the innovation economy',
+    entity: 'STOA',
+    author: 'MATTIA ASTORI',
+    date: 'OCT 2026',
+    subtitle: 'A chartered bank built for technology companies, two years after SVB.',
+  },
 }
 
 /** Exported so this module is a Fast Refresh boundary, as the prototype's is. */

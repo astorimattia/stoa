@@ -33,15 +33,11 @@
       "destination": "/index.html"
     },
     {
-      "source": "/research/yc-s26-screening",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/research/elections-vc",
-      "destination": "/index.html"
-    },
-    {
       "source": "/research/authors/:slug",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/research/:slug",
       "destination": "/index.html"
     },
     {

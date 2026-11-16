@@ -2,6 +2,7 @@
 // device so it can open every other piece the reader has access to. It is
 // only ever sent to /api/article; the server decides what it opens.
 
+
 const KEY = 'stoa_reader_token'
 
 export function getReaderToken(): string | null {
