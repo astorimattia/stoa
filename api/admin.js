@@ -1,23 +1,20 @@
 // Reader administration for Stoa. This is the ONLY way anyone gains access:
 // Mattia calls it over HTTPS with the admin secret. Readers, not pieces, are
-// approved: one reading link per reader opens every members piece, and
-// restricted pieces additionally need a per-piece grant.
+// approved: one reading link per reader opens every gated piece. Pieces are
+// either open (no gate) or gated; there are no per-piece grants.
 //
 // Actions (POST JSON):
-//   approve {email, days?, piece?, rotate?} create or refresh a reader. A new
-//            reader gets a new link (returned once). An existing active reader
-//            keeps their link (expiry only ever extended) unless rotate:true.
-//            A revoked or expired reader gets a fresh link. With a restricted
-//            piece, also grants it. Marks matching pending requests handled.
-//   grant {email, piece} / ungrant {email, piece}   restricted pieces only;
-//            the reader must exist.
+//   approve {email, days?, rotate?} create or refresh a reader. A new reader
+//            gets a new link (returned once). An existing active reader keeps
+//            their link (expiry only ever extended) unless rotate:true. A
+//            revoked or expired reader gets a fresh link. Marks all of the
+//            reader's pending requests handled.
 //   revoke {email} / expire {email}   kill all of the reader's access
 //            (legacy per-piece links for that email too).
-//   status {email}   reader, grants and requests (never tokens).
-//   purge {email}    delete reader, grants and requests (tests/cleanup).
+//   status {email}   reader and requests (never tokens).
+//   purge {email}    delete reader and requests (tests/cleanup).
 //
-// It cannot read or change article content, cannot send email, and only
-// touches the allowlisted pieces in _stoa-pieces.js.
+// It cannot read or change article content and cannot send email.
 //
 // Security properties:
 // - Bearer secret compared constant-time via SHA-256 pre-hashing (length-
@@ -34,7 +31,7 @@
 
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { getSql, ensureSchema } from './_stoa-db.js'
-import { PIECES, tierOf, slugForLabel, DEFAULT_LINK_DAYS, MAX_LINK_DAYS } from './_stoa-pieces.js'
+import { DEFAULT_LINK_DAYS, MAX_LINK_DAYS } from './_stoa-pieces.js'
 
 const FAIL_WINDOW_MIN = 10
 const MAX_FAILS = 10
@@ -79,7 +76,7 @@ const audit = (sql, ip, action, target, ok) =>
     () => {}
   )
 
-const ACTIONS = ['approve', 'grant', 'ungrant', 'revoke', 'expire', 'status', 'purge']
+const ACTIONS = ['approve', 'revoke', 'expire', 'status', 'purge']
 const SITE = 'https://www.stoacap.com'
 
 const isActive = (r) =>
@@ -114,26 +111,14 @@ export default async function handler(req, res) {
       try { body = JSON.parse(body) } catch { body = {} }
     }
     const action = (body.action || '').toString()
-    const pieceSlug = (body.piece || '').toString().slice(0, 100)
     const email = (body.email || '').toString().trim().toLowerCase().slice(0, 200)
-    const cfg = pieceSlug ? PIECES[pieceSlug] : null
-    const needsPiece = action === 'grant' || action === 'ungrant'
 
-    if (
-      !ACTIONS.includes(action) ||
-      !/^\S+@\S+\.\S+$/.test(email) ||
-      (pieceSlug && !cfg) ||
-      (needsPiece && !cfg)
-    ) {
+    if (!ACTIONS.includes(action) || !/^\S+@\S+\.\S+$/.test(email)) {
       await audit(sql, ip, action || 'invalid', null, false)
-      return res.status(400).json({ error: 'Unknown action, piece or email' })
-    }
-    if (needsPiece && tierOf(cfg) !== 'restricted') {
-      await audit(sql, ip, action, `${email} ${pieceSlug}`, false)
-      return res.status(400).json({ error: 'Only restricted pieces take grants' })
+      return res.status(400).json({ error: 'Unknown action or email' })
     }
 
-    const target = pieceSlug ? `${email} ${pieceSlug}` : email
+    const target = email
     const readerRows = await sql`
       select email, role, status, expires_at, revoked_at from stoa_readers where email = ${email} limit 1
     `
@@ -181,81 +166,41 @@ export default async function handler(req, res) {
         `
       }
 
-      if (cfg && tierOf(cfg) === 'restricted') {
-        await sql`
-          insert into stoa_grants (email, piece) values (${email}, ${pieceSlug})
-          on conflict (email, piece) do update set revoked_at = null, granted_at = now()
-        `
-      }
-
-      // Inbox: mark the requests this approval answers as handled. A pending
-      // request for a restricted piece stays pending unless it was granted.
-      const pending = await sql`select id, piece from stoa_requests where email = ${email} and status = 'pending'`
-      const handled = pending
-        .filter((r) => {
-          const slug = slugForLabel(r.piece)
-          return !slug || slug === pieceSlug || tierOf(PIECES[slug]) !== 'restricted'
-        })
-        .map((r) => r.id)
-      if (handled.length) {
-        await sql`update stoa_requests set status = 'handled' where id = any(${handled}::uuid[])`
-      }
+      // Inbox: one reader link opens every gated piece, so approving a
+      // reader answers all of their pending requests.
+      const handledRows = await sql`
+        update stoa_requests set status = 'handled'
+        where lower(email) = ${email} and status = 'pending'
+        returning id
+      `
 
       const fresh = await sql`select expires_at from stoa_readers where email = ${email} limit 1`
       await audit(sql, ip, action, target, true)
-      const path = cfg && tierOf(cfg) !== 'open' ? `/research/${pieceSlug}` : '/research'
       return res.status(200).json({
         email,
-        piece: pieceSlug || null,
         expiresAt: fresh[0] ? fresh[0].expires_at : null,
         expiresInDays: days,
         rotated: !!token,
-        granted: !!(cfg && tierOf(cfg) === 'restricted'),
-        handledRequests: handled.length,
+        handledRequests: handledRows.length,
         // The raw link leaves the server only here, and only when minted now.
-        url: token ? `${SITE}${path}?t=${token}` : null,
+        url: token ? `${SITE}/research?t=${token}` : null,
       })
     }
 
     if (action === 'status') {
-      const grants = await sql`
-        select piece, granted_at, revoked_at from stoa_grants where email = ${email} order by piece
-      `
       const requests = await sql`
         select role, piece, status, approved_at, expires_at, revoked_at, created_at
-        from stoa_requests where email = ${email} order by created_at desc limit 20
+        from stoa_requests where lower(email) = ${email} order by created_at desc limit 20
       `
       await audit(sql, ip, action, target, true)
-      return res.status(200).json({ reader, grants, requests })
+      return res.status(200).json({ reader, active: !!isActive(reader), requests })
     }
 
     if (action === 'purge') {
-      const g = await sql`delete from stoa_grants where email = ${email} returning piece`
       const r = await sql`delete from stoa_readers where email = ${email} returning email`
       const q = await sql`delete from stoa_requests where lower(email) = ${email} returning id`
       await audit(sql, ip, action, target, true)
-      return res.status(200).json({ action, email, deleted: { readers: r.length, grants: g.length, requests: q.length } })
-    }
-
-    if (action === 'grant' || action === 'ungrant') {
-      if (!reader) {
-        await audit(sql, ip, action, target, false)
-        return res.status(404).json({ error: 'No reader with that email; approve them first' })
-      }
-      const changed =
-        action === 'grant'
-          ? await sql`
-              insert into stoa_grants (email, piece) values (${email}, ${pieceSlug})
-              on conflict (email, piece) do update set revoked_at = null, granted_at = now()
-              returning piece
-            `
-          : await sql`
-              update stoa_grants set revoked_at = now()
-              where email = ${email} and piece = ${pieceSlug} and revoked_at is null
-              returning piece
-            `
-      await audit(sql, ip, action, target, true)
-      return res.status(200).json({ action, email, piece: pieceSlug, changed: changed.length })
+      return res.status(200).json({ action, email, deleted: { readers: r.length, requests: q.length } })
     }
 
     // revoke / expire: the whole reader, plus any legacy per-piece links.

@@ -1,13 +1,13 @@
 // Read-only admin dashboard data for stoacap.com/admin. Returns the inbox
 // of access requests (with the piece asked for), the readers (status, role,
-// expiry and per-piece grants) and every piece with its tier. It can only read - approvals, revocations and
+// expiry) and every piece as open or gated. It can only read - approvals, revocations and
 // expiries stay in admin.js - and it never returns tokens, article content
 // or secrets. Same auth model as admin.js: the STOA_ADMIN_SECRET bearer,
 // compared constant-time, with failed-auth throttling and audit.
 
 import { createHash, timingSafeEqual } from 'node:crypto'
 import { getSql, ensureSchema } from './_stoa-db.js'
-import { PIECES, tierOf, DEFAULT_LINK_DAYS, MAX_LINK_DAYS } from './_stoa-pieces.js'
+import { PIECES, isOpen, DEFAULT_LINK_DAYS, MAX_LINK_DAYS } from './_stoa-pieces.js'
 
 const FAIL_WINDOW_MIN = 10
 const MAX_FAILS = 10
@@ -75,14 +75,10 @@ export default async function handler(req, res) {
       order by created_at desc
       limit 500
     `
-    const grantRows = await sql`select email, piece, granted_at from stoa_grants where revoked_at is null`
-    const grantsBy = {}
-    for (const g of grantRows) (grantsBy[g.email] ||= []).push(g.piece)
     const now = new Date()
     const readers = readerRows.map((r) => ({
       ...r,
       active: r.status === 'approved' && !r.revoked_at && (!r.expires_at || new Date(r.expires_at) > now),
-      grants: (grantsBy[r.email] || []).sort(),
     }))
     const byStatus = await sql`
       select status, count(*)::int as count from stoa_requests group by status
@@ -103,8 +99,8 @@ export default async function handler(req, res) {
     const pieces = Object.entries(PIECES).map(([slug, c]) => ({
       slug,
       title: c.title,
-      tier: tierOf(c),
-      public: tierOf(c) === 'open',
+      access: isOpen(c) ? 'open' : 'gated',
+      public: isOpen(c),
     }))
     return res.status(200).json({
       totals,

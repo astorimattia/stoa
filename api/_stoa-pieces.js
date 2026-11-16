@@ -1,32 +1,22 @@
 // Reader slugs shared by the article gate and the admin endpoint. The slug
-// scopes everything: article delivery and approvals both resolve through
-// this table, so an admin call can only ever touch a known piece.
+// scopes everything: article delivery resolves through this table, so only
+// a known piece can ever be served.
 //
-// Tiers:
-// - open:       anyone, no reading link.
-// - members:    any approved, unexpired reader (one link works across pieces).
-// - restricted: an approved reader who also holds a grant for this slug.
-export const TIERS = ['open', 'members', 'restricted']
+// Two states only:
+// - open:  anyone, no reading link (open: true).
+// - gated: everything else. Any approved, unexpired, unrevoked reader's
+//          link opens every gated piece.
 
 export const PIECES = {
-  'yc-s26-screening': { title: 'S26 Screening', envKey: 'ARTICLE_YC_S26', tier: 'restricted' },
+  'yc-s26-screening': { title: 'S26 Screening', envKey: 'ARTICLE_YC_S26' },
   'elections-vc': {
     title: 'Do US election results have an impact on venture capital?',
     envKey: 'ARTICLE_ELECTIONS_VC',
-    tier: 'open',
+    open: true,
   },
 }
 
-export const tierOf = (cfg) => (cfg && TIERS.includes(cfg.tier) ? cfg.tier : 'members')
-
-/** Resolve a stored piece label (title or slug) back to its slug, or null. */
-export function slugForLabel(label) {
-  if (!label) return null
-  for (const [slug, cfg] of Object.entries(PIECES)) {
-    if (cfg.title === label || slug === label) return slug
-  }
-  return null
-}
+export const isOpen = (cfg) => !!(cfg && cfg.open === true)
 
 export const DEFAULT_LINK_DAYS = 30
 export const MAX_LINK_DAYS = 365

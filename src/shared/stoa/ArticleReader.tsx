@@ -181,7 +181,7 @@ function Gate({ meta, onBack, linkRejected }: { meta: ReaderMeta; onBack?: () =>
                 </p>
                 {linkRejected && (
                   <p className="mt-3 font-sans text-sm leading-relaxed text-accent">
-                    Your reading link does not open this piece. Request it below.
+                    This reading link is not active. Request access below.
                   </p>
                 )}
                 <div className="font-sans">

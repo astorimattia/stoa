@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { ArrowRight, Lock } from 'lucide-react'
 
-import { issues, tierOf } from '../shared/stoa/issues'
+import { issues, isGated } from '../shared/stoa/issues'
 import { fetchAccessibleSlugs } from '../shared/stoa/readerToken'
 import { RoleChoice, type Role } from '../shared/stoa/RoleChoice'
 
@@ -33,8 +33,8 @@ export default function StoaHome(props: Props) {
   const reduce = useReducedMotion()
   const stage = useRef<HTMLElement>(null)
   const cover = useCover(stage)
-  // Pieces this device's reading link opens (members pieces, plus granted
-  // restricted ones). They open directly; other gated pieces go to the form.
+  // Gated pieces this device's reading link opens (all of them for an active
+  // reader). They open directly; other gated pieces go to the request form.
   const [access, setAccess] = useState<Set<string>>(() => new Set())
   useEffect(() => {
     let cancelled = false
@@ -142,7 +142,7 @@ export default function StoaHome(props: Props) {
                         <li key={issue.slug} className="border-t border-paper/10 first:border-t-0">
                           <button
                             onClick={() => {
-                              if (tierOf(issue) === 'open' || access.has(issue.slug)) {
+                              if (!isGated(issue) || access.has(issue.slug)) {
                                 window.location.href = `/research/${issue.slug}`
                                 return
                               }
@@ -160,7 +160,7 @@ export default function StoaHome(props: Props) {
                                 <span>{issue.date}</span>
                               </span>
                             </span>
-                            {tierOf(issue) !== 'open' && !access.has(issue.slug) && (
+                            {isGated(issue) && !access.has(issue.slug) && (
                               <Lock className="mt-1.5 h-3.5 w-3.5 shrink-0 text-paper/30 transition-colors duration-150 ease-soft group-hover:text-paper/80" strokeWidth={1.5} />
                             )}
                           </button>

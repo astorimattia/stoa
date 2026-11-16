@@ -6,17 +6,14 @@ export type Issue = {
   market: string
   date: string
   readTime: string
-  /** Access tier, mirrored from api/_stoa-pieces.js:
-   *  open = anyone; members = any approved reader; restricted = per-reader grant.
-   *  Defaults to members. */
-  tier?: Tier
-  /** Open pieces open directly at /research/<slug>; derived from tier. */
+  /** Open pieces need no reading link and open directly at /research/<slug>.
+   *  Every other piece is gated: any active reader's link opens it.
+   *  Mirrors `open: true` in api/_stoa-pieces.js. */
   public?: boolean
 }
 
-export type Tier = 'open' | 'members' | 'restricted'
-
-export const tierOf = (issue: Pick<Issue, 'tier'>): Tier => issue.tier || 'members'
+/** Gated unless marked public. */
+export const isGated = (issue: Pick<Issue, 'public'>): boolean => !issue.public
 
 /** Stoa's launch set — newest first. */
 export const issues: Issue[] = [
@@ -28,7 +25,6 @@ export const issues: Issue[] = [
     market: 'Venture',
     date: 'Nov 2026',
     readTime: '9 min',
-    tier: 'open',
     public: true,
   },
   {
@@ -75,6 +71,5 @@ export const issues: Issue[] = [
     market: 'YC',
     date: 'Sep 2026',
     readTime: '8 min',
-    tier: 'restricted',
   },
 ]

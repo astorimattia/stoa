@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-type Tier = 'open' | 'members' | 'restricted'
+type Access = 'open' | 'gated'
 
 type StoaRequest = {
   email: string
@@ -22,10 +22,9 @@ type Reader = {
   expires_at: string | null
   revoked_at: string | null
   created_at: string
-  grants: string[]
 }
 
-type Piece = { slug: string; title: string; tier: Tier; public: boolean }
+type Piece = { slug: string; title: string; access: Access; public: boolean }
 
 type DashboardData = {
   totals: {
@@ -42,8 +41,8 @@ type DashboardData = {
   linkDays?: { default: number; max: number }
 }
 
-type Action = 'approve' | 'revoke' | 'expire' | 'grant' | 'ungrant'
-type ApproveTarget = { email: string; slug: string; rotate: boolean }
+type Action = 'approve' | 'revoke' | 'expire'
+type ApproveTarget = { email: string; rotate: boolean }
 type IssuedLink = { email: string; url: string; expiresAt: string | null }
 
 const SECRET_KEY = 'stoa_admin_secret'
@@ -72,11 +71,10 @@ function statusTone(status: string): string {
   return 'text-paper/45'
 }
 
-function TierTag({ tier }: { tier: Tier | undefined }) {
-  if (!tier) return null
-  const tone =
-    tier === 'open' ? 'border-emerald-300/30 text-emerald-300/80' : tier === 'restricted' ? 'border-amber-300/30 text-amber-300/80' : 'border-paper/20 text-paper/55'
-  return <span className={`ml-2 inline-block border px-1.5 py-px text-[10px] uppercase tracking-[0.12em] ${tone}`}>{tier}</span>
+function AccessTag({ access }: { access: Access | undefined }) {
+  if (!access) return null
+  const tone = access === 'open' ? 'border-emerald-300/30 text-emerald-300/80' : 'border-paper/20 text-paper/55'
+  return <span className={`ml-2 inline-block border px-1.5 py-px text-[10px] uppercase tracking-[0.12em] ${tone}`}>{access}</span>
 }
 
 export default function AdminDashboard() {
@@ -96,7 +94,6 @@ export default function AdminDashboard() {
   const [notice, setNotice] = useState<string | null>(null)
 
   const pieces: Piece[] = data?.pieces || []
-  const restricted = pieces.filter((p) => p.tier === 'restricted')
   const readers: Reader[] = data?.readers || []
   const defaultDays = data?.linkDays?.default || 30
   const maxDays = data?.linkDays?.max || 365
@@ -131,8 +128,8 @@ export default function AdminDashboard() {
   // Calls api/admin.js with the session secret. A response that carries a
   // one-time reading link is held in memory only, never stored.
   const act = useCallback(
-    async (action: Action, payload: { email: string; piece?: string; days?: number; rotate?: boolean }) => {
-      setBusy(`${action}:${payload.email}:${payload.piece || ''}`)
+    async (action: Action, payload: { email: string; days?: number; rotate?: boolean }) => {
+      setBusy(`${action}:${payload.email}`)
       setNotice(null)
       try {
         const res = await fetch('/api/admin', {
@@ -158,12 +155,8 @@ export default function AdminDashboard() {
             setIssued({ email: body.email, url: body.url, expiresAt: body.expiresAt })
             setCopied(false)
           } else {
-            setNotice(
-              `${body.email} keeps their existing link${body.granted ? ' and now has ' + (payload.piece || '') : ''}; access runs to ${fmt(body.expiresAt)}.`
-            )
+            setNotice(`${body.email} keeps their existing link; access runs to ${fmt(body.expiresAt)}.`)
           }
-        } else if (action === 'grant' || action === 'ungrant') {
-          setNotice(`${action === 'grant' ? 'Granted' : 'Removed'} ${payload.piece} ${action === 'grant' ? 'to' : 'from'} ${payload.email}.`)
         } else {
           setNotice(
             body.changed
@@ -192,8 +185,8 @@ export default function AdminDashboard() {
     return data.requests.filter((r) => requestStatus(r) === filter)
   }, [data, filter])
 
-  const startApprove = (email: string, slug = '', rotate = false) => {
-    setApproving({ email, slug, rotate })
+  const startApprove = (email: string, rotate = false) => {
+    setApproving({ email, rotate })
     setDays(defaultDays)
   }
 
@@ -303,7 +296,6 @@ export default function AdminDashboard() {
               if (!approving.email) return
               act('approve', {
                 email: approving.email,
-                piece: approving.slug || undefined,
                 days,
                 rotate: approving.rotate || undefined,
               })
@@ -319,16 +311,6 @@ export default function AdminDashboard() {
                 placeholder="reader@company.com"
                 className="w-64 border border-paper/20 bg-transparent px-2 py-1 text-paper"
               />
-              <label className="flex items-center gap-2">
-                Piece
-                <select value={approving.slug} onChange={(e) => setApproving({ ...approving, slug: e.target.value })}
-                  className="border border-paper/20 bg-ink px-2 py-1 text-paper">
-                  <option value="">Members access only</option>
-                  {pieces.map((p) => (
-                    <option key={p.slug} value={p.slug}>{p.title} ({p.tier})</option>
-                  ))}
-                </select>
-              </label>
               <label className="flex items-center gap-2">
                 Valid for
                 <input type="number" min={1} max={maxDays} value={days}
@@ -350,7 +332,7 @@ export default function AdminDashboard() {
               </button>
             </div>
             <p className="mt-2 text-xs text-paper/40">
-              An active reader keeps their link and only gets more time (and the restricted piece, if chosen).
+              One link opens every gated piece. An active reader keeps their link and only gets more time.
             </p>
           </form>
         )}
@@ -371,7 +353,7 @@ export default function AdminDashboard() {
                   <li key={p.slug} className="flex items-baseline justify-between gap-4 text-sm">
                     <span className="min-w-0 truncate text-paper/75">
                       {p.title}
-                      <TierTag tier={p.tier} />
+                      <AccessTag access={p.access} />
                     </span>
                     <span className="shrink-0 text-paper/45">
                       {data.totals.byPiece.find((b) => b.piece === p.title)?.count || 0} requests
@@ -401,12 +383,12 @@ export default function AdminDashboard() {
                         <td className="py-3 pr-4 text-paper/55">{r.role || '—'}</td>
                         <td className="max-w-[300px] truncate py-3 pr-4 text-paper/55">
                           {r.piece || 'Any piece'}
-                          <TierTag tier={p?.tier} />
+                          <AccessTag access={p?.access} />
                         </td>
                         <td className="py-3 pr-4 text-paper/55">{fmt(r.created_at)}</td>
                         <td className="py-3 text-right whitespace-nowrap">
                           <button className={btn} disabled={!!busy}
-                            onClick={() => startApprove(r.email, p && p.tier === 'restricted' ? p.slug : '')}>
+                            onClick={() => startApprove(r.email)}>
                             Approve
                           </button>
                         </td>
@@ -423,18 +405,13 @@ export default function AdminDashboard() {
             </Section>
 
             <Section title={`Readers (${readers.length})`}>
-              <table className="w-full min-w-[820px] border-collapse text-left text-sm">
+              <table className="w-full min-w-[720px] border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-b border-paper/15 text-xs uppercase tracking-[0.12em] text-paper/40">
                     <th className="py-2.5 pr-4 font-normal">Email</th>
                     <th className="py-2.5 pr-4 font-normal">Role</th>
                     <th className="py-2.5 pr-4 font-normal">Status</th>
                     <th className="py-2.5 pr-4 font-normal">Access until</th>
-                    {restricted.map((p) => (
-                      <th key={p.slug} className="max-w-[140px] truncate py-2.5 pr-4 font-normal" title={p.title}>
-                        {p.title}
-                      </th>
-                    ))}
                     <th className="py-2.5 font-normal text-right">Actions</th>
                   </tr>
                 </thead>
@@ -447,28 +424,8 @@ export default function AdminDashboard() {
                         <td className="py-3 pr-4 text-paper/55">{r.role || '—'}</td>
                         <td className={`py-3 pr-4 capitalize ${statusTone(v)}`}>{v}</td>
                         <td className="py-3 pr-4 text-paper/55">{v === 'revoked' ? '—' : fmt(r.expires_at)}</td>
-                        {restricted.map((p) => {
-                          const on = r.grants.includes(p.slug)
-                          return (
-                            <td key={p.slug} className="py-3 pr-4">
-                              <button
-                                role="switch"
-                                aria-checked={on}
-                                aria-label={`${p.title} for ${r.email}`}
-                                disabled={!!busy}
-                                onClick={() => {
-                                  if (on && !window.confirm(`Remove ${p.title} from ${r.email}?`)) return
-                                  act(on ? 'ungrant' : 'grant', { email: r.email, piece: p.slug })
-                                }}
-                                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-40 ${on ? 'bg-emerald-400/70' : 'bg-paper/15'}`}
-                              >
-                                <span className={`inline-block h-4 w-4 rounded-full bg-paper transition-transform ${on ? 'translate-x-4' : 'translate-x-0.5'}`} />
-                              </button>
-                            </td>
-                          )
-                        })}
                         <td className="py-3 text-right whitespace-nowrap">
-                          <button className={btn} disabled={!!busy} onClick={() => startApprove(r.email, '', v === 'revoked')}>
+                          <button className={btn} disabled={!!busy} onClick={() => startApprove(r.email, v === 'revoked')}>
                             {v === 'approved' ? 'Extend' : 'Approve'}
                           </button>
                           {v === 'approved' && (
@@ -489,7 +446,7 @@ export default function AdminDashboard() {
                   })}
                   {readers.length === 0 && (
                     <tr>
-                      <td colSpan={5 + restricted.length} className="py-8 text-center text-sm text-paper/40">No readers yet.</td>
+                      <td colSpan={5} className="py-8 text-center text-sm text-paper/40">No readers yet.</td>
                     </tr>
                   )}
                 </tbody>
@@ -527,7 +484,7 @@ export default function AdminDashboard() {
                       <td className="py-3 pr-4 text-paper/55">{r.role || '—'}</td>
                       <td className="max-w-[300px] truncate py-3 pr-4 text-paper/55">
                         {r.piece || 'Any piece'}
-                        <TierTag tier={pieceFor(r.piece)?.tier} />
+                        <AccessTag access={pieceFor(r.piece)?.access} />
                       </td>
                       <td className={`py-3 pr-4 capitalize ${statusTone(requestStatus(r))}`}>{requestStatus(r)}</td>
                       <td className="py-3 pr-4 text-paper/55">{fmt(r.created_at)}</td>
