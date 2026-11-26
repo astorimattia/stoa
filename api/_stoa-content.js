@@ -83,6 +83,33 @@ export const safeImageURL = (src) => {
     return u.href
   } catch { return '' }
 }
+// Imported HTML -> one line of the editor's inline Markdown: links become
+// [text](url), <strong>/<b> **text**, <em>/<i> *text*; other tags are dropped.
+const mdWrap = (t, l, r = l) => { const m = String(t).match(/^(\s*)([\s\S]*?)(\s*)$/); return m[2] ? m[1] + l + m[2] + r + m[3] : t }
+export const inlineMarkdown = (html) => {
+  let s = String(html || '').replace(/<br\s*\/?>/gi, ' ')
+  s = s.replace(/<(strong|b)\b[^>]*>([\s\S]*?)<\/\1>/gi, (_, __, inner) => mdWrap(inner, '**'))
+  s = s.replace(/<(em|i)\b[^>]*>([\s\S]*?)<\/\1>/gi, (_, __, inner) => mdWrap(inner, '*'))
+  s = s.replace(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi, (whole, attr, inner) => {
+    const href = attrs('<a ' + attr + '>').href || ''
+    const text = cleanText(inner)
+    return /^(https?:|mailto:)/i.test(href) && text ? mdWrap(inner, '[', '](' + href.replace(/\s/g, '%20').replace(/\)/g, '%29') + ')') : inner
+  })
+  return cleanText(s).replace(/\*\*\*\*/g, '')
+}
+const stripInline = (t) => String(t || '').replace(/\[([^\]]+)\]\((?:https?:|mailto:)[^\s)]+\)/g, '$1').replace(/\*\*([^*]+?)\*\*/g, '$1').replace(/\*([^*]+?)\*/g, '$1')
+// Legacy blocks keep links in a separate list; write them inline for editing.
+const withLinks = (text, links) => {
+  if (!links || !links.length) return text || ''
+  let out = '', rest = String(text || '')
+  for (const l of links) {
+    const i = rest.indexOf(l.text)
+    if (i === -1 || !/^(https?:|mailto:)/i.test(l.href || '')) continue
+    out += rest.slice(0, i) + '[' + l.text + '](' + String(l.href).replace(/\s/g, '%20').replace(/\)/g, '%29') + ')'
+    rest = rest.slice(i + l.text.length)
+  }
+  return out + rest
+}
 const imageLine = (b) => '![' + String(b.alt || '').replace(/[\]\n\r]/g, ' ') + '](' + b.src + (b.caption ? ' "' + String(b.caption).replace(/["\n\r]/g, "'") + '"' : '') + ')'
 
 export function textToMemo({ slug, title, author, entity, date, subtitle, body }) {
@@ -106,14 +133,14 @@ export function textToMemo({ slug, title, author, entity, date, subtitle, body }
 export function memoToText(memo) {
   return (memo.sections || []).flatMap((s) => s.blocks || []).map((b) => {
     if (b.type === 'h3') return '## ' + b.text
-    if (b.type === 'li') return '- ' + b.text
+    if (b.type === 'li') return '- ' + withLinks(b.text, b.links)
     if (b.type === 'img') return imageLine(b)
-    return b.text || ''
+    return withLinks(b.text, b.links)
   }).filter(Boolean).join('\n\n')
 }
 
 // Imported HTML -> Memo blocks. Paragraphs, headings, list items and images
-// survive; everything else is stripped to text. Links keep their text only.
+// survive; links, bold and italic become inline Markdown; the rest is text.
 // Figures keep the source image URL, alt text and caption where available.
 export function htmlToMemo({ slug, title, author, entity, date, subtitle, html }) {
   const blocks = []
@@ -140,7 +167,7 @@ export function htmlToMemo({ slug, title, author, entity, date, subtitle, html }
     const parts = String(value || '').split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean)
     for (const part of parts) {
       const tag = (part.match(/^<(p|h1|h2|h3|h4|li|blockquote)>/i) || [])[1] || ''
-      const text = cleanText(part)
+      const text = /^h[1-4]$/i.test(tag) ? cleanText(part) : inlineMarkdown(part.replace(/<img\b[^>]*>/gi, ''))
       if (/^h[1-4]$/i.test(tag)) { if (text) blocks.push({ type: 'h3', text }) }
       else if (/^li$/i.test(tag)) { if (text) blocks.push({ type: 'li', text }) }
       else if (text) blocks.push({ type: 'p', text })
@@ -161,7 +188,7 @@ export function htmlToMemo({ slug, title, author, entity, date, subtitle, html }
   return { slug, title, entity: entity || 'STOA', author: author || 'MATTIA ASTORI', date: date || '', ...(subtitle ? { subtitle } : {}), sections: [{ id: 's1', blocks }] }
 }
 
-const normText = (v) => String(v || '').replace(/\s+/g, ' ').trim().toLowerCase()
+const normText = (v) => stripInline(v).replace(/\s+/g, ' ').trim().toLowerCase()
 const textOfBlock = (b) => b && (b.type === 'p' || b.type === 'h3' || b.type === 'li') ? normText(b.text) : ''
 
 // Repair an already-published imported piece without touching its text: add

@@ -44,6 +44,34 @@ function renderLinked(text: string, links?: MemoLink[]): React.ReactNode {
   nodes.push(rest)
   return nodes
 }
+/** Renders the inline Markdown the pieces editor writes: [text](url),
+ *  **bold** and *italic*. Only http(s) and mailto links become anchors. */
+const INLINE_RE = /\[([^\]]+)\]\(((?:https?:|mailto:)[^\s)]+)\)|\*\*([^*]+?)\*\*|\*([^*\s](?:[^*]*?[^*\s])?)\*/g
+export function renderInline(text: string, keyPrefix = 'i'): React.ReactNode {
+  if (!/[*[]/.test(text)) return text
+  const nodes: React.ReactNode[] = []
+  let last = 0
+  let n = 0
+  for (const m of text.matchAll(INLINE_RE)) {
+    const idx = m.index ?? 0
+    if (idx > last) nodes.push(text.slice(last, idx))
+    const key = keyPrefix + '-' + n++
+    if (m[1] !== undefined)
+      nodes.push(
+        <a key={key} href={m[2]} target="_blank" rel="noreferrer" className="underline decoration-rule underline-offset-4 transition-colors hover:text-ink/70">
+          {renderInline(m[1], key)}
+        </a>,
+      )
+    else if (m[3] !== undefined) nodes.push(<strong key={key} className="font-semibold">{renderInline(m[3], key)}</strong>)
+    else nodes.push(<em key={key}>{renderInline(m[4], key)}</em>)
+    last = idx + m[0].length
+  }
+  if (!nodes.length) return text
+  if (last < text.length) nodes.push(text.slice(last))
+  return nodes
+}
+/** Legacy blocks carry a links list; newer ones carry inline Markdown. */
+const renderText = (text: string, links?: MemoLink[]) => (links && links.length ? renderLinked(text, links) : renderInline(text))
 type MemoSection = {
   id: string
   label: string | null
@@ -316,7 +344,7 @@ export default function ArticleReader({ meta, onBack }: { meta: ReaderMeta; onBa
                           <img src={b.src} alt={b.alt || 'Chart from the article.'} className="w-full" style={b.minWidth ? { minWidth: b.minWidth } : undefined} loading="lazy" />
                           {b.caption && (
                             <figcaption className="mt-2 font-sans text-xs leading-relaxed text-muted">
-                              {renderLinked(b.caption, b.links)}
+                              {renderText(b.caption, b.links)}
                             </figcaption>
                           )}
                         </figure>
@@ -324,7 +352,7 @@ export default function ArticleReader({ meta, onBack }: { meta: ReaderMeta; onBa
                     if (b.type === 'h3')
                       return (
                         <h3 key={i} className="mt-8 text-xl font-medium tracking-tight">
-                          {b.text}
+                          {renderInline(b.text)}
                         </h3>
                       )
                     if (b.type === 'table')
@@ -355,12 +383,12 @@ export default function ArticleReader({ meta, onBack }: { meta: ReaderMeta; onBa
                     if (b.type === 'li')
                       return (
                         <p key={i} className="mt-5 text-xl leading-[1.65] text-ink/90">
-                          {renderLinked(b.text, b.links)}
+                          {renderText(b.text, b.links)}
                         </p>
                       )
                     return (
                       <p key={i} className="mt-5 text-xl leading-[1.65] text-ink/90">
-                        {renderLinked(b.text, b.links)}
+                        {renderText(b.text, b.links)}
                       </p>
                     )
                   })
