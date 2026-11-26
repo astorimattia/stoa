@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { MemoBody, TitleBlock, type Memo } from './ArticleReader'
 
 // Loaded only when a piece is opened, so readers never download the editor.
@@ -8,10 +8,21 @@ type PieceFull = { slug: string; title: string; mode: string; number: number; ma
 type Draft = { id: string; title: string; summary: string; market: string; body: string; updated_at: string }
 type SubstackPost = { slug: string; title: string; subtitle: string; date: string; paid: boolean; imported: boolean }
 type LinkPreview = { url: string; source: string; title: string; author: string; body: string; review: string; note: string }
+type Editing = { slug?: string; draftId?: string; title: string; summary: string; market: string; body: string; mode: string; emailReaders: boolean }
+type Backup = { title: string; summary: string; market: string; body: string; at: number }
 type AnnouncePreview = { recipients: string[]; readerCount?: number; subject: string; text: string; html?: string; sending: string }
 
 const btn = 'bg-ink px-5 py-2.5 font-sans text-sm text-paper transition-colors hover:bg-ink/85 disabled:opacity-50'
 const field = 'w-full border border-rule bg-white/50 px-3 py-2.5 text-sm outline-none focus:border-ink'
+const BODY_LIMIT = 200000 // the server keeps at most this many characters
+const AUTOSAVE_MS = 3000
+// What counts as a change: the text fields, not the publish options.
+const snap = (e: Pick<Editing, 'title' | 'summary' | 'market' | 'body'>) => JSON.stringify([e.title, e.summary, e.market, e.body])
+// Unsaved edits to a published piece stay on this device until saved.
+const backupKey = (slug: string) => 'stoa-edit-backup:' + slug
+const readBackup = (slug: string): Backup | null => { try { return JSON.parse(localStorage.getItem(backupKey(slug)) || 'null') } catch { return null } }
+const clearBackup = (slug: string) => { try { localStorage.removeItem(backupKey(slug)) } catch { /* storage off */ } }
+const time = (d: number) => new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 const MARKETS = ['Venture', 'Space', 'Fintech', 'Energy', 'Defense', 'Compute', 'Robotics', 'Materials', 'Other']
 const MODES: { id: string; label: string; hint: string }[] = [
   { id: 'open', label: 'Open', hint: 'Anyone can read it in full.' },
@@ -29,7 +40,15 @@ export default function PiecesAdmin({ secret, pieces, drafts, review, onChanged 
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [viewing, setViewing] = useState<null | Memo>(null)
-  const [editing, setEditing] = useState<null | { slug?: string; draftId?: string; title: string; summary: string; market: string; body: string; mode: string; emailReaders: boolean }>(null)
+  const [editing, setEditing] = useState<null | Editing>(null)
+  const [savedSnap, setSavedSnap] = useState('')
+  const [saveNote, setSaveNote] = useState<null | { state: 'saving' | 'saved' | 'error' | 'local'; at: number }>(null)
+  const [restore, setRestore] = useState<null | Backup>(null)
+  const [editorKey, setEditorKey] = useState(0)
+  const draftIdRef = useRef<string | undefined>(undefined)
+  const saving = useRef<Promise<boolean> | null>(null)
+  const autosaved = useRef(false)
+  const closing = useRef(false) // publishing or leaving: no more autosaves
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null)
   const [confirmingPiece, setConfirmingPiece] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
@@ -58,6 +77,70 @@ export default function PiecesAdmin({ secret, pieces, drafts, review, onChanged 
     const j = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(j.error || 'The request did not complete')
     return j
+  }
+
+  // Opens the editor on a piece, draft or blank page, and records what is saved.
+  function startEditing(e: Editing) {
+    setEditing(e); setSavedSnap(snap(e)); setSaveNote(null); setErr(''); setRestore(null)
+    setEditorKey((k) => k + 1)
+    draftIdRef.current = e.draftId; closing.current = false
+    if (e.slug) { const b = readBackup(e.slug); if (b && snap(b) !== snap(e)) setRestore(b); else if (b) clearBackup(e.slug) }
+  }
+  const dirty = !!editing && snap(editing) !== savedSnap
+
+  // Saves a draft quietly (no list reload), so typing is never interrupted.
+  function saveDraftNow(e: Editing): Promise<boolean> {
+    if (saving.current) return saving.current.then(() => snap(e) === savedSnapRef.current || saveDraftNow(e))
+    const sent = snap(e)
+    setSaveNote({ state: 'saving', at: Date.now() })
+    const p = (async () => {
+      try {
+        const res = await fetch('/api/account-admin', { method: 'POST', headers: auth, body: JSON.stringify({ action: 'save-draft', id: draftIdRef.current, title: e.title, summary: e.summary, market: e.market, body: e.body }) })
+        const j = await res.json().catch(() => ({}))
+        if (!res.ok || !j.id) throw new Error(j.error || 'not saved')
+        draftIdRef.current = j.id; autosaved.current = true
+        setEditing((cur) => cur && !cur.slug ? { ...cur, draftId: j.id } : cur)
+        setSavedSnap(sent); savedSnapRef.current = sent
+        setSaveNote({ state: 'saved', at: Date.now() })
+        return true
+      } catch { setSaveNote({ state: 'error', at: Date.now() }); return false } finally { saving.current = null }
+    })()
+    saving.current = p
+    return p
+  }
+  const savedSnapRef = useRef('')
+  useEffect(() => { savedSnapRef.current = savedSnap }, [savedSnap])
+
+  // Autosave: drafts save to the server a few seconds after typing stops;
+  // edits to a published piece are kept on this device until "Save changes".
+  useEffect(() => {
+    if (!editing || !dirty) return
+    const t = setTimeout(() => {
+      if (closing.current) return
+      if (editing.slug) {
+        try { localStorage.setItem(backupKey(editing.slug), JSON.stringify({ title: editing.title, summary: editing.summary, market: editing.market, body: editing.body, at: Date.now() })); setSaveNote({ state: 'local', at: Date.now() }) } catch { /* storage off */ }
+      } else if (editing.title.trim() || editing.body.trim()) void saveDraftNow(editing)
+    }, editing.slug ? 800 : AUTOSAVE_MS)
+    return () => clearTimeout(t)
+  }, [editing, dirty])
+
+  // Warn before closing the tab or reloading with unsaved changes.
+  useEffect(() => {
+    if (!dirty) return
+    const warn = (ev: BeforeUnloadEvent) => { ev.preventDefault(); ev.returnValue = '' }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [dirty])
+
+  async function leaveEditor() {
+    if (editing && dirty) {
+      if (!editing.slug && (editing.title.trim() || editing.body.trim())) {
+        if (!(await saveDraftNow(editing)) && !window.confirm('This draft could not be saved. Leave anyway and lose the latest changes?')) return
+      } else if (editing.slug && !window.confirm('Leave without saving? Your changes stay on this device, and you can restore them when you next open this piece.')) return
+    }
+    closing.current = true
+    setEditing(null); setSaveNote(null); setRestore(null)
+    if (autosaved.current) { autosaved.current = false; await onChanged() }
   }
 
   const removing = pieces.find(p => p.slug === confirmingPiece)
@@ -100,7 +183,7 @@ export default function PiecesAdmin({ secret, pieces, drafts, review, onChanged 
   async function openPiece(p: PieceFull) {
     setPieceNotice('')
     const r = await act({ action: 'load-piece', slug: p.slug })
-    if (r) setEditing({ slug: r.slug, title: r.title, summary: r.summary, market: r.market, body: r.body, mode: p.mode, emailReaders: false })
+    if (r) startEditing({ slug: r.slug, title: r.title, summary: r.summary, market: r.market, body: r.body, mode: p.mode, emailReaders: false })
   }
 
   async function viewPiece(p: PieceFull) {
@@ -113,13 +196,16 @@ export default function PiecesAdmin({ secret, pieces, drafts, review, onChanged 
   async function saveChanges() {
     if (!editing?.slug) return
     const r = await act({ action: 'update-piece', slug: editing.slug, title: editing.title, summary: editing.summary, market: editing.market, body: editing.body })
-    if (r) { setEditing(null); setPieceNotice('Changes saved. The piece keeps its link, access setting and reader stats.') }
+    if (r) { clearBackup(editing.slug); setSavedSnap(snap(editing)); setEditing(null); setSaveNote(null); setPieceNotice('Changes saved. The piece keeps its link, access setting and reader stats.') }
   }
 
   async function publish() {
     if (!editing) return
-    const r = await act({ action: 'publish-piece', title: editing.title, summary: editing.summary, market: editing.market, body: editing.body, mode: editing.mode, draftId: editing.draftId })
-    if (!r) return
+    closing.current = true
+    if (saving.current) await saving.current // the draft it replaces must exist first
+    const r = await act({ action: 'publish-piece', title: editing.title, summary: editing.summary, market: editing.market, body: editing.body, mode: editing.mode, draftId: draftIdRef.current || editing.draftId })
+    if (!r) { closing.current = false; return }
+    setSavedSnap(snap(editing)); setSaveNote(null); autosaved.current = false
     const slug = r.slug
     if (editing.emailReaders) {
       setEditing(null)
@@ -160,19 +246,28 @@ export default function PiecesAdmin({ secret, pieces, drafts, review, onChanged 
     return <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto max-w-5xl px-5 py-8 lg:px-10">
         <div className="mb-6 flex items-center justify-between gap-4 text-sm text-muted">
-          <button className="underline" onClick={() => setEditing(null)}>&larr; Pieces</button>
-          <span>{words} words · {Math.max(1, Math.round(words / 200))} min</span>
+          <button className="underline" onClick={leaveEditor}>&larr; Pieces</button>
+          <span className="flex flex-wrap items-baseline justify-end gap-x-4">
+            {saveNote && <span className={saveNote.state === 'error' ? 'text-red-800' : ''}>{saveNote.state === 'saving' ? 'Saving…' : saveNote.state === 'saved' ? (dirty ? 'Unsaved changes' : `Draft saved ${time(saveNote.at)}`) : saveNote.state === 'local' ? (editing.slug ? 'Unsaved changes, kept on this device' : '') : 'Not saved. Check your connection.'}</span>}
+            <span>{words} words · {Math.max(1, Math.round(words / 200))} min</span>
+          </span>
         </div>
         {drafts.length > 0 && !editing.draftId && !editing.slug && <div className="mb-6 flex flex-wrap items-center gap-3 text-sm">
           <span className="text-muted">Load a draft:</span>
-          {drafts.map((d) => <button key={d.id} className="underline" onClick={() => setEditing({ draftId: d.id, title: d.title, summary: d.summary, market: d.market, body: d.body, mode: 'readers', emailReaders: false })}>{d.title || 'Untitled'} <span className="text-muted">({new Date(d.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})</span></button>)}
+          {drafts.map((d) => <button key={d.id} className="underline" onClick={() => startEditing({ draftId: d.id, title: d.title, summary: d.summary, market: d.market, body: d.body, mode: 'readers', emailReaders: false })}>{d.title || 'Untitled'} <span className="text-muted">({new Date(d.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})</span></button>)}
         </div>}
+        {restore && <div className="mb-6 flex flex-wrap items-baseline gap-x-4 gap-y-2 border border-rule bg-white/40 px-4 py-3 text-sm">
+          <span className="flex-1">You have unsaved changes to this piece from {new Date(restore.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, {time(restore.at)}.</span>
+          <button className="underline" onClick={() => { setEditing((e) => e ? { ...e, title: restore.title, summary: restore.summary, market: restore.market, body: restore.body } : e); setRestore(null) }}>Restore them</button>
+          <button className="text-muted underline" onClick={() => { if (editing.slug) clearBackup(editing.slug); setRestore(null) }}>Discard</button>
+        </div>}
+        {editing.body.length > BODY_LIMIT && <p className="mb-6 border border-red-800/40 px-4 py-3 text-sm text-red-800">This piece is longer than Stoa can save ({editing.body.length.toLocaleString()} of {BODY_LIMIT.toLocaleString()} characters). The end would be cut off. Split it into two pieces, or shorten it.</p>}
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_260px]">
           <div>
             <input className="w-full border-0 bg-transparent font-serif text-4xl font-light leading-tight tracking-tight outline-none placeholder:text-muted/60" placeholder="Title" value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} />
             <input className="mt-4 w-full border-0 bg-transparent font-serif text-lg italic text-ink/75 outline-none placeholder:text-muted/60" placeholder="One-line summary" value={editing.summary} onChange={(e) => setEditing({ ...editing, summary: e.target.value })} />
             <Suspense fallback={<p className="mt-8 font-sans text-sm text-muted">Opening the editor…</p>}>
-              <RichEditor key={editing.slug || editing.draftId || 'new'} value={editing.body} onChange={(body) => setEditing((e) => e ? { ...e, body } : e)} onError={setErr} />
+              <RichEditor key={editorKey} value={editing.body} onChange={(body) => setEditing((e) => e ? { ...e, body } : e)} onError={setErr} />
             </Suspense>
           </div>
           <aside className="space-y-6 border-t border-rule pt-6 lg:border-0 lg:pt-0">
@@ -199,10 +294,10 @@ export default function PiecesAdmin({ secret, pieces, drafts, review, onChanged 
             </>}
             {editing.slug ? <div className="flex flex-wrap gap-3">
               <button disabled={busy} className={btn} onClick={saveChanges}>Save changes</button>
-              <button disabled={busy} className="border border-rule px-5 py-2.5 text-sm" onClick={() => setEditing(null)}>Cancel</button>
+              <button disabled={busy} className="border border-rule px-5 py-2.5 text-sm" onClick={leaveEditor}>Cancel</button>
             </div> : <div className="flex flex-wrap gap-3">
               <button disabled={busy} className={btn} onClick={publish}>{review ? 'Publish test piece' : 'Publish'}</button>
-              <button disabled={busy} className="border border-rule px-5 py-2.5 text-sm" onClick={async () => { const r = await act({ action: 'save-draft', id: editing.draftId, title: editing.title, summary: editing.summary, market: editing.market, body: editing.body }); if (r) setEditing({ ...editing, draftId: r.id }) }}>Save draft</button>
+              <button disabled={busy} className="border border-rule px-5 py-2.5 text-sm" onClick={() => { void saveDraftNow(editing) }}>Save draft</button>
             </div>}
             {err && <p className="text-sm text-red-800">{err}</p>}
           </aside>
@@ -220,7 +315,7 @@ export default function PiecesAdmin({ secret, pieces, drafts, review, onChanged 
           {([['all', 'All'], ['open', 'Open'], ['closed', 'Readers']] as const).map(([t, label]) => <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={`-mb-px border-b-2 pb-3 ${tab === t ? 'border-ink' : 'border-transparent text-muted'}`}>{label} <span className="tabular-nums text-muted">{counts[t]}</span></button>)}
         </div>
         <button className="mb-3 border border-rule px-4 py-2" onClick={() => { setImporting(true); setLinkPreview(null); setErr(''); setPosts(null); setImportNote(''); setImportResult(null) }}>Import</button>
-        <button className={btn + ' mb-3'} onClick={() => setEditing({ title: '', summary: '', market: '', body: '', mode: 'readers', emailReaders: false })}>New</button>
+        <button className={btn + ' mb-3'} onClick={() => startEditing({ title: '', summary: '', market: '', body: '', mode: 'readers', emailReaders: false })}>New</button>
       </div>
     </header>
     <div className="min-h-0 flex-1 overflow-y-auto">
@@ -228,7 +323,7 @@ export default function PiecesAdmin({ secret, pieces, drafts, review, onChanged 
         <h2 className="text-xs uppercase tracking-[0.14em] text-muted">Drafts</h2>
         <ul className="mt-1 divide-y divide-rule/70">
           {drafts.map((d) => <li key={d.id} className="flex flex-wrap items-baseline gap-x-4 gap-y-1 py-2.5">
-            <button className="flex min-w-0 flex-1 items-baseline gap-4 text-left" onClick={() => setEditing({ draftId: d.id, title: d.title, summary: d.summary, market: d.market, body: d.body, mode: 'readers', emailReaders: false })}>
+            <button className="flex min-w-0 flex-1 items-baseline gap-4 text-left" onClick={() => startEditing({ draftId: d.id, title: d.title, summary: d.summary, market: d.market, body: d.body, mode: 'readers', emailReaders: false })}>
               <span className="min-w-0 flex-1 truncate font-serif text-lg">{d.title || 'Untitled'}</span>
               <span className="shrink-0 text-xs text-muted">Saved {new Date(d.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
             </button>
