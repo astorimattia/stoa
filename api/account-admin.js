@@ -6,7 +6,7 @@ import {canonicalRequestAllowed} from './_canonical-request.js'
 import { accountAdmin } from './_account-admin.js'
 import { deliverTemplate } from './_mail-delivery.js'
 import { readAdminSession, createAdminSession, revokeAdminSession, clearAdminSession, hasAdminSessionCookie, sameOriginAdminRequest } from './_admin-session.js'
-import { createHash, timingSafeEqual } from 'node:crypto'
+import { createHash, timingSafeEqual, randomBytes } from 'node:crypto'
 import { approved, declined, customEmail } from './_stoa-emails.js'
 import { getSql, ensureSchema, T } from './_stoa-db.js'
 import { ensureTestSchema } from './_test-schema.js'
@@ -57,7 +57,7 @@ async function recordFailure(sql, ip) {
 
 
 const ACTIONS = ['approve', 'decline', 'reopen', 'note', 'revoke', 'expire', 'status', 'purge', 'resend-welcome',
-  'preview-custom-email', 'send-custom-email', 'setpiece', 'save-draft', 'delete-draft', 'delete-piece', 'publish-piece', 'load-piece', 'update-piece', 'import-substack', 'import-link', 'repair-piece-media', 'announce-piece', 'subscribe-test', 'admin-session-start', 'admin-session-stop']
+  'preview-custom-email', 'send-custom-email', 'setpiece', 'save-draft', 'delete-draft', 'delete-piece', 'publish-piece', 'load-piece', 'update-piece', 'import-substack', 'import-link', 'repair-piece-media', 'announce-piece', 'subscribe-test', 'upload-image', 'admin-session-start', 'admin-session-stop']
 
 const isActive = (r) =>
   r && r.status === 'approved' && !r.revoked_at && (!r.expires_at || new Date(r.expires_at) > new Date())
@@ -159,7 +159,7 @@ export default async function handler(req, res) {
 
     // Piece/content actions carry no reader email and never touch reader,
     // request or grant rows. In review mode they write only test tables.
-    if (action.startsWith('setpiece') || action.endsWith('-draft') || action === 'delete-piece' || action === 'publish-piece' || action === 'load-piece' || action === 'update-piece' || action === 'import-substack' || action === 'import-link' || action === 'repair-piece-media' || action === 'announce-piece' || action === 'subscribe-test') {
+    if (action.startsWith('setpiece') || action.endsWith('-draft') || action === 'delete-piece' || action === 'publish-piece' || action === 'load-piece' || action === 'update-piece' || action === 'import-substack' || action === 'import-link' || action === 'repair-piece-media' || action === 'announce-piece' || action === 'subscribe-test' || action === 'upload-image') {
       const pfx = test ? 'stoa_test_' : 'stoa_'
       await ensureContentSchema(sql, pfx)
       const PT = { pieces: pfx + 'pieces', content: pfx + 'piece_content', drafts: pfx + 'piece_drafts', subscriptions: pfx + 'subscriptions' }
@@ -176,6 +176,29 @@ export default async function handler(req, res) {
         else await sql`insert into ${T(sql, PT.subscriptions)}(email, unsubscribed_at) values (${target}, null) on conflict (email) do update set unsubscribed_at = null`
         await audit(ip, action, target, true)
         return res.status(200).json({ subscribed: !body.stop })
+      }
+
+      // Editor image upload: the browser has already resized the image.
+      // It goes to the site's Vercel Blob store under a random name, and
+      // the piece stores only the returned https URL.
+      if (action === 'upload-image') {
+        const types = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' }
+        const type = String(body.type || '')
+        const data = typeof body.data === 'string' ? body.data : ''
+        if (!types[type] || !data) { await audit(ip, action, null, false); return res.status(400).json({ error: 'Use a JPEG, PNG, GIF or WebP image' }) }
+        const bytes = Buffer.from(data, 'base64')
+        if (!bytes.length || bytes.length > 3_000_000) { await audit(ip, action, null, false); return res.status(413).json({ error: 'This image is too large (3 MB at most)' }) }
+        if (!process.env.BLOB_READ_WRITE_TOKEN) return res.status(503).json({ error: 'Image storage is not connected to this deployment' })
+        try {
+          const { put } = await import('@vercel/blob')
+          const name = (test ? 'test/' : '') + 'pieces/' + new Date().toISOString().slice(0, 7) + '/' + randomBytes(12).toString('hex') + '.' + types[type]
+          const blob = await put(name, bytes, { access: 'public', contentType: type, cacheControlMaxAge: 31536000, addRandomSuffix: false })
+          await audit(ip, action, null, true)
+          return res.status(200).json({ url: blob.url })
+        } catch (e) {
+          await audit(ip, action, null, false)
+          return res.status(502).json({ error: 'The image could not be stored. Check that the Blob store is public.' })
+        }
       }
 
       if (action === 'setpiece') {

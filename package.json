@@ -21,6 +21,7 @@
     "@tiptap/pm": "^2.27.3",
     "@tiptap/react": "^2.27.3",
     "@tiptap/starter-kit": "^2.27.3",
+    "@vercel/blob": "^1.1.1",
     "better-auth": "^1.7.25",
     "better-sqlite3": "^13.2.0",
     "date-fns": "4.1.0",
