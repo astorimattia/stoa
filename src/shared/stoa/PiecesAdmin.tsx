@@ -118,7 +118,7 @@ export default function PiecesAdmin({ secret, pieces, drafts, review, onChanged 
   const [tab, setTab] = useState<'all' | 'open' | 'closed'>('all')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
-  const [editing, setEditing] = useState<null | { draftId?: string; title: string; summary: string; market: string; body: string; mode: string; emailReaders: boolean }>(null)
+  const [editing, setEditing] = useState<null | { slug?: string; draftId?: string; title: string; summary: string; market: string; body: string; mode: string; emailReaders: boolean }>(null)
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null)
   const [confirmingPiece, setConfirmingPiece] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
@@ -186,6 +186,18 @@ export default function PiecesAdmin({ secret, pieces, drafts, review, onChanged 
     if (r) { setImportResult({ imported: r.imported || [], skipped: r.skipped || [] }); setPosts(null); setChosen({}) }
   }
 
+  async function openPiece(p: PieceFull) {
+    setPieceNotice('')
+    const r = await act({ action: 'load-piece', slug: p.slug })
+    if (r) setEditing({ slug: r.slug, title: r.title, summary: r.summary, market: r.market, body: r.body, mode: p.mode, emailReaders: false })
+  }
+
+  async function saveChanges() {
+    if (!editing?.slug) return
+    const r = await act({ action: 'update-piece', slug: editing.slug, title: editing.title, summary: editing.summary, market: editing.market, body: editing.body })
+    if (r) { setEditing(null); setPieceNotice('Changes saved. The piece keeps its link, access setting and reader stats.') }
+  }
+
   async function publish() {
     if (!editing) return
     const r = await act({ action: 'publish-piece', title: editing.title, summary: editing.summary, market: editing.market, body: editing.body, mode: editing.mode, draftId: editing.draftId })
@@ -221,7 +233,7 @@ export default function PiecesAdmin({ secret, pieces, drafts, review, onChanged 
           <button className="underline" onClick={() => setEditing(null)}>&larr; Pieces</button>
           <span>{words} words · {Math.max(1, Math.round(words / 200))} min</span>
         </div>
-        {drafts.length > 0 && !editing.draftId && <div className="mb-6 flex flex-wrap items-center gap-3 text-sm">
+        {drafts.length > 0 && !editing.draftId && !editing.slug && <div className="mb-6 flex flex-wrap items-center gap-3 text-sm">
           <span className="text-muted">Load a draft:</span>
           {drafts.map((d) => <button key={d.id} className="underline" onClick={() => setEditing({ draftId: d.id, title: d.title, summary: d.summary, market: d.market, body: d.body, mode: 'readers', emailReaders: false })}>{d.title || 'Untitled'} <span className="text-muted">({new Date(d.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})</span></button>)}
         </div>}
@@ -254,6 +266,7 @@ export default function PiecesAdmin({ secret, pieces, drafts, review, onChanged 
                 {MARKETS.map((m) => <option key={m} value={m}>{m}</option>)}
               </select>
             </label>
+            {editing.slug ? <p className="text-sm text-muted">Editing a published piece. Its link, access setting and reader stats stay the same. Change access from the Pieces list.</p> : <>
             <fieldset className="text-sm">
               <legend className="text-muted">Who can read it</legend>
               <div className="mt-2 space-y-2">
@@ -267,10 +280,14 @@ export default function PiecesAdmin({ secret, pieces, drafts, review, onChanged 
               <input type="checkbox" className="mt-1" checked={editing.emailReaders} onChange={(e) => setEditing({ ...editing, emailReaders: e.target.checked })} />
               <span>Email readers about it<span className="mt-1 block text-xs text-muted">Off by default. If ticked, you review the exact message and recipients after publishing, before anything is queued. {review ? 'Test announcements are captured, never sent.' : 'Announcement sending stays off until you deliberately enable it.'}</span></span>
             </label>
-            <div className="flex flex-wrap gap-3">
+            </>}
+            {editing.slug ? <div className="flex flex-wrap gap-3">
+              <button disabled={busy} className={btn} onClick={saveChanges}>Save changes</button>
+              <button disabled={busy} className="border border-rule px-5 py-2.5 text-sm" onClick={() => setEditing(null)}>Cancel</button>
+            </div> : <div className="flex flex-wrap gap-3">
               <button disabled={busy} className={btn} onClick={publish}>{review ? 'Publish test piece' : 'Publish'}</button>
               <button disabled={busy} className="border border-rule px-5 py-2.5 text-sm" onClick={async () => { const r = await act({ action: 'save-draft', id: editing.draftId, title: editing.title, summary: editing.summary, market: editing.market, body: editing.body }); if (r) setEditing({ ...editing, draftId: r.id }) }}>Save draft</button>
-            </div>
+            </div>}
             {err && <p className="text-sm text-red-800">{err}</p>}
           </aside>
         </div>
@@ -324,6 +341,7 @@ export default function PiecesAdmin({ secret, pieces, drafts, review, onChanged 
           <span className="flex overflow-hidden border border-rule text-sm">
             {MODES.map((m) => <button key={m.id} disabled={busy} onClick={() => changeMode(p, m.id)} aria-pressed={p.mode === m.id} className={`px-3 py-1.5 ${p.mode === m.id ? 'bg-ink text-paper' : 'text-muted hover:text-ink'}`}>{m.label}</button>)}
           </span>
+          {p.source !== 'code' && <button disabled={busy} className="text-xs text-muted underline hover:text-ink" onClick={() => openPiece(p)}>Edit</button>}
           {p.source === 'editor' && <button disabled={busy} className="text-xs text-muted underline hover:text-ink" onClick={async () => { setPieceNotice(''); const r = await act({ action: 'repair-piece-media', slug: p.slug, host: importHost || 'stoaresearch.substack.com', confirmTitle: p.title }); if (r) setPieceNotice(r.added ? `Restored ${r.added} image${r.added === 1 ? '' : 's'} from the Substack source. Text, slug, access and analytics were not changed.` : 'No missing source images found for this piece.') }}>Restore images</button>}
           <button disabled={busy} className="text-xs text-muted underline hover:text-ink" onClick={() => setConfirmingPiece(p.slug)}>Delete</button>
         </li>)}

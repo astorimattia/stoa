@@ -57,7 +57,7 @@ async function recordFailure(sql, ip) {
 
 
 const ACTIONS = ['approve', 'decline', 'reopen', 'note', 'revoke', 'expire', 'status', 'purge', 'resend-welcome',
-  'preview-custom-email', 'send-custom-email', 'setpiece', 'save-draft', 'delete-draft', 'delete-piece', 'publish-piece', 'import-substack', 'import-link', 'repair-piece-media', 'announce-piece', 'subscribe-test', 'admin-session-start', 'admin-session-stop']
+  'preview-custom-email', 'send-custom-email', 'setpiece', 'save-draft', 'delete-draft', 'delete-piece', 'publish-piece', 'load-piece', 'update-piece', 'import-substack', 'import-link', 'repair-piece-media', 'announce-piece', 'subscribe-test', 'admin-session-start', 'admin-session-stop']
 
 const isActive = (r) =>
   r && r.status === 'approved' && !r.revoked_at && (!r.expires_at || new Date(r.expires_at) > new Date())
@@ -159,7 +159,7 @@ export default async function handler(req, res) {
 
     // Piece/content actions carry no reader email and never touch reader,
     // request or grant rows. In review mode they write only test tables.
-    if (action.startsWith('setpiece') || action.endsWith('-draft') || action === 'delete-piece' || action === 'publish-piece' || action === 'import-substack' || action === 'import-link' || action === 'repair-piece-media' || action === 'announce-piece' || action === 'subscribe-test') {
+    if (action.startsWith('setpiece') || action.endsWith('-draft') || action === 'delete-piece' || action === 'publish-piece' || action === 'load-piece' || action === 'update-piece' || action === 'import-substack' || action === 'import-link' || action === 'repair-piece-media' || action === 'announce-piece' || action === 'subscribe-test') {
       const pfx = test ? 'stoa_test_' : 'stoa_'
       await ensureContentSchema(sql, pfx)
       const PT = { pieces: pfx + 'pieces', content: pfx + 'piece_content', drafts: pfx + 'piece_drafts', subscriptions: pfx + 'subscriptions' }
@@ -248,6 +248,36 @@ export default async function handler(req, res) {
         if (body.draftId) await sql`delete from ${T(sql, PT.drafts)} where id = ${String(body.draftId).slice(0, 40)}`
         await audit(ip, action, slug, true)
         return res.status(200).json({ slug, number })
+      }
+
+      // Published pieces stored in the database can be reopened and edited.
+      // Slug, number, date, access mode and analytics are kept as they are.
+      if (action === 'load-piece') {
+        const slug = String(body.slug || '').slice(0, 100)
+        const row = (await sql`select slug, title, dek, market, memo from ${T(sql, PT.content)} where slug = ${slug} limit 1`)[0]
+        if (!row) return res.status(404).json({ error: 'This piece cannot be edited here.' })
+        const memo = typeof row.memo === 'string' ? JSON.parse(row.memo) : row.memo
+        await audit(ip, action, slug, true)
+        return res.status(200).json({ slug, title: row.title, summary: row.dek || '', market: row.market || '', body: memoToText(memo || {}) })
+      }
+
+      if (action === 'update-piece') {
+        const slug = String(body.slug || '').slice(0, 100)
+        const title = String(body.title || '').trim().slice(0, 200)
+        const summary = String(body.summary || '').trim().slice(0, 1000)
+        const market = String(body.market || '').trim().slice(0, 80)
+        const text = String(body.body || '').trim().slice(0, 200000)
+        if (!title || !text) return res.status(400).json({ error: 'A title and body are required' })
+        const row = (await sql`select memo from ${T(sql, PT.content)} where slug = ${slug} limit 1`)[0]
+        if (!row) return res.status(404).json({ error: 'This piece cannot be edited here.' })
+        const old = (typeof row.memo === 'string' ? JSON.parse(row.memo) : row.memo) || {}
+        const fresh = textToMemo({ slug, title, author: old.author, entity: old.entity, date: old.date, subtitle: summary, body: text })
+        const memo = { ...old, ...fresh }
+        if (!summary) delete memo.subtitle
+        await sql`update ${T(sql, PT.content)} set title = ${title}, dek = ${summary}, market = ${market}, read_time = ${readTime(text)}, memo = ${JSON.stringify(memo)}, updated_at = now() where slug = ${slug}`
+        await sql`update ${T(sql, PT.pieces)} set title = ${title} where slug = ${slug}`
+        await audit(ip, action, slug, true)
+        return res.status(200).json({ slug, updated: true })
       }
 
       if(action === 'import-link'){
