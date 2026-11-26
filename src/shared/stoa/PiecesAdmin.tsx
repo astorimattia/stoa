@@ -14,6 +14,67 @@ const MODES: { id: string; label: string; hint: string }[] = [
   { id: 'readers', label: 'Readers', hint: 'Everyone else sees the summary, a lock, and the request form.' },
 ]
 
+// Clipboard HTML -> the plain-text editor format, so images, headings, lists
+// and tables pasted from Substack, Google Docs or a web page survive. Images
+// become one-line Markdown image lines (the same form the importer writes);
+// table rows become text lines with cells split by " | ". Returns '' when the
+// HTML holds nothing richer than text, so a normal text paste is untouched.
+function htmlToEditorText(html: string): string {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  if (!doc.body.querySelector('img, table, h1, h2, h3, h4, li')) return ''
+  const out: string[] = []
+  const clean = (t: string) => t.replace(/\s+/g, ' ').trim()
+  const walk = (el: Element) => {
+    const tag = el.tagName.toLowerCase()
+    if (tag === 'img') {
+      const src = el.getAttribute('src') || el.getAttribute('data-src') || ''
+      if (/^https:\/\//i.test(src)) out.push('![' + clean(el.getAttribute('alt') || '').replace(/[\]]/g, ' ') + '](' + src.replace(/\s/g, '%20') + ')')
+      return
+    }
+    if (tag === 'figure') {
+      const cap = clean(el.querySelector('figcaption')?.textContent || '')
+      const img = el.querySelector('img')
+      const src = img?.getAttribute('src') || ''
+      if (img && /^https:\/\//i.test(src)) out.push('![' + clean(img.getAttribute('alt') || '').replace(/[\]]/g, ' ') + '](' + src.replace(/\s/g, '%20') + (cap ? ' "' + cap.replace(/"/g, "'") + '"' : '') + ')')
+      return
+    }
+    if (tag === 'table') {
+      for (const row of el.querySelectorAll('tr')) {
+        const cells = [...row.children].map((c) => clean(c.textContent || '')).filter(Boolean)
+        if (cells.length) out.push(cells.join(' | '))
+      }
+      return
+    }
+    if (/^h[1-4]$/.test(tag)) { const t = clean(el.textContent || ''); if (t) out.push('## ' + t); return }
+    if (tag === 'li') { const t = clean(el.textContent || ''); if (t) out.push('- ' + t); return }
+    if (tag === 'p' || tag === 'blockquote') {
+      if (el.querySelector('img')) { [...el.children].forEach(walk); const t = clean(el.textContent || ''); if (t) out.push(t); return }
+      const t = clean(el.textContent || ''); if (t) out.push(t); return
+    }
+    if (el.children.length) [...el.children].forEach(walk)
+    else { const t = clean(el.textContent || ''); if (t) out.push(t) }
+  }
+  ;[...doc.body.children].forEach(walk)
+  return out.join('\n\n')
+}
+
+// Shows the image lines in the body as pictures, fitted to the column, so an
+// image line reads as an image and a bad link is easy to spot.
+function BodyPreview({ body }: { body: string }) {
+  const images = useMemo(() => [...body.matchAll(/^!\[([^\]]*)\]\((\S+?)(?:\s+"([^"]*)")?\)$/gm)].map((m) => ({ alt: m[1], src: m[2], caption: m[3] || '' })), [body])
+  if (!images.length) return null
+  return <div className="mt-6 border-t border-rule pt-4">
+    <p className="text-sm text-muted">Images in this piece ({images.length})</p>
+    <div className="mt-3 grid gap-4 sm:grid-cols-2">
+      {images.map((im, i) => <figure key={i + im.src} className="border border-rule bg-white/40 p-2">
+        <img src={im.src} alt={im.alt} loading="lazy" className="h-auto w-full max-w-full" onError={(e) => { e.currentTarget.style.display = 'none'; (e.currentTarget.nextElementSibling as HTMLElement | null)?.removeAttribute('hidden') }} />
+        <p hidden className="text-xs text-red-700">This image link does not load.</p>
+        {im.caption && <figcaption className="mt-1 text-xs text-muted">{im.caption}</figcaption>}
+      </figure>)}
+    </div>
+  </div>
+}
+
 export default function PiecesAdmin({ secret, pieces, drafts, review, onChanged }: {
   secret: string
   pieces: PieceFull[]
@@ -135,7 +196,23 @@ export default function PiecesAdmin({ secret, pieces, drafts, review, onChanged 
           <div>
             <input className="w-full border-0 bg-transparent font-serif text-4xl font-light leading-tight tracking-tight outline-none placeholder:text-muted/60" placeholder="Title" value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} />
             <input className="mt-4 w-full border-0 bg-transparent font-serif text-lg italic text-ink/75 outline-none placeholder:text-muted/60" placeholder="One-line summary" value={editing.summary} onChange={(e) => setEditing({ ...editing, summary: e.target.value })} />
-            <textarea className="mt-8 min-h-[420px] w-full border-0 bg-transparent font-serif text-base leading-relaxed outline-none placeholder:text-muted/60" placeholder="Write the piece. Blank line between paragraphs; ## for a heading; - for a list item." value={editing.body} onChange={(e) => setEditing({ ...editing, body: e.target.value })} />
+            <textarea className="mt-8 min-h-[420px] w-full border-0 bg-transparent font-serif text-base leading-relaxed outline-none placeholder:text-muted/60" placeholder="Write the piece, or paste from Substack, Google Docs or the web. Images come over as image lines. Blank line between paragraphs; ## for a heading; - for a list item." value={editing.body} onChange={(e) => setEditing({ ...editing, body: e.target.value })} onPaste={(e) => {
+              const ta = e.currentTarget
+              const html = e.clipboardData.getData('text/html')
+              const pasted = html ? htmlToEditorText(html) : ''
+              if (!pasted) {
+                if (!e.clipboardData.getData('text/plain') && [...e.clipboardData.files].some((f) => f.type.startsWith('image/'))) {
+                  e.preventDefault()
+                  setErr('Image files from your computer cannot be pasted yet. Copy the image from a web page (Substack, Docs) instead, so it keeps its link.')
+                }
+                return
+              }
+              e.preventDefault()
+              setErr('')
+              const before = editing.body.slice(0, ta.selectionStart), after = editing.body.slice(ta.selectionEnd)
+              setEditing({ ...editing, body: before + pasted + after })
+            }} />
+            <BodyPreview body={editing.body} />
           </div>
           <aside className="space-y-6 border-t border-rule pt-6 lg:border-0 lg:pt-0">
             <label className="block text-sm text-muted">Market
