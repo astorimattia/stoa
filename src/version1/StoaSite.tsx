@@ -1,114 +1,97 @@
 import React, { useEffect, useState } from 'react'
 
-import StoaHome from './StoaHome'
-import ReaderHome from './ReaderHome'
-import StoaIssue from './StoaIssue'
+import Home from './Home'
+import Research from './Research'
+import Note from './Note'
+import Positions from './Positions'
+import Experts from './Experts'
+import Members from './Members'
 
-const HOME = 'cmtNB8dQ38z9wA8FFAAtNE'
-const READER_HOME = 'efPPPqYDZD3hwTHwNHyDED'
-const ISSUE = '1VNbzut9ctibRvv5rsz4Ra'
+const HOME = '6XFDFUgVM26wSN1YHiMuat'
+const RESEARCH = 'iYrmqbYhguHqgVyTULg5ps'
+const POSITIONS = 't4tAL3Gt31NZ6wqHMpBaXQ'
+const MEMBERS = 'r6j2fjsX2HD3y1vS7eHa6k'
+const NOTE = '7d8MS6qF3jZFmf73c5cAz9'
+const EXPERTS = 'r9JEQgiAxLoZxyX1xQrp3s'
+
+const pages = { home: HOME, research: RESEARCH, positions: POSITIONS, experts: EXPERTS, members: MEMBERS } as const
 
 /** The size every frame draws at, unless one exports its own. */
 export const viewport = 'web'
 
 export const args = {
-  access: 'signed-out',
-  signInAs: 'approved',
+  signedIn: false,
 }
 
 export const argTypes = {
-  access: { control: 'radio', options: ['signed-out', 'member'] },
-  signInAs: { control: 'radio', options: ['approved', 'pending', 'unknown'] },
+  signedIn: { control: 'boolean' },
 }
 
 type Props = Partial<typeof args> & { start?: string; live?: boolean }
 
 /** Live site only: store an access request the same way the main home does. */
-function sendRequest(email: string, role: string | null, piece: string | null) {
+function sendRequest(email: string) {
   fetch('/api/request', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, role, piece }),
+    body: JSON.stringify({ email, role: null, piece: null }),
   }).catch(() => {})
 }
 
-/**
- * Stoa is a gated front door. Visitors request access; approved readers sign in
- * with an emailed link. `signInAs` decides what a sign-in attempt finds. An
- * approved reader is signed in a moment after the link is sent, standing in
- * for them opening it from their inbox.
- */
-export default function StoaSite(props: Props) {
-  const { access: startAccess, signInAs, start, live } = { ...args, ...props }
-  /** Home and reader home are one place: which one shows depends on access. */
-  const [step, setStep] = useState(() => (start === READER_HOME ? HOME : start ?? HOME))
+export default function Prototype(props: Props) {
+  const { signedIn: startSignedIn, start, live } = { ...args, ...props }
+  const requestAccess = (email?: string) => {
+    setRequested(true)
+    if (live && email) sendRequest(email)
+  }
+  const [page, setPage] = useState(() => start ?? HOME)
+  const [signedIn, setSignedIn] = useState(startSignedIn)
   const [requested, setRequested] = useState(false)
-  const [access, setAccess] = useState(start === READER_HOME ? 'member' : startAccess)
-  const [email, setEmail] = useState('')
-  /** Opens the home sheet on a given panel, e.g. sign in from an issue page. */
-  const [homePanel, setHomePanel] = useState<string | null>(null)
+  const [noteSlug, setNoteSlug] = useState('micron-margin')
+  useEffect(() => setSignedIn(startSignedIn), [startSignedIn])
 
-  useEffect(() => setAccess(startAccess), [startAccess])
+  const navigate = (to: keyof typeof pages) => {
+    setPage(pages[to])
+    window.scrollTo?.({ top: 0 })
+  }
+  const openNote = (slug: string) => {
+    setNoteSlug(slug)
+    setPage(NOTE)
+    window.scrollTo?.({ top: 0 })
+  }
 
-  if (step === ISSUE) {
+  if (page === NOTE)
     return (
-      <StoaIssue
-        state={requested ? 'requested' : 'default'}
-        access={access}
-        onBack={() => {
-          setHomePanel(null)
-          setStep(HOME)
-        }}
-        onSignIn={() => {
-          setHomePanel('signin')
-          setStep(HOME)
-        }}
-        onRequest={(address, role) => {
-          if (live) sendRequest(address, role, null)
-          setRequested(true)
-        }}
+      <Note
+        slug={noteSlug}
+        signedIn={signedIn}
+        intake={requested ? 'sent' : 'default'}
+        onNavigate={navigate}
+        onRequestAccess={requestAccess}
       />
     )
-  }
-  if (access === 'member') {
+
+  if (page === RESEARCH) return <Research signedIn={signedIn} onNavigate={navigate} onOpenNote={openNote} />
+  if (page === EXPERTS) return <Experts signedIn={signedIn} onNavigate={navigate} onOpenNote={openNote} />
+  if (page === POSITIONS) return <Positions signedIn={signedIn} onNavigate={navigate} onOpenNote={openNote} />
+  if (page === MEMBERS)
     return (
-      <ReaderHome
-        state="returning"
-        email={email || 'mara@kiln.co'}
-        onOpen={() => setStep(ISSUE)}
-        onSignOut={() => {
-          setHomePanel(null)
-          setAccess('signed-out')
-        }}
+      <Members
+        state={signedIn ? 'signed-in' : requested ? 'requested' : 'signed-out'}
+        onNavigate={navigate}
+        signInHref={live ? '/signin' : undefined}
+        onSignIn={() => setSignedIn(true)}
+        onSignOut={() => setSignedIn(false)}
+        onRequestAccess={requestAccess}
       />
     )
-  }
   return (
-    <StoaHome
-      state={homePanel ?? (requested ? 'requested' : 'default')}
-      access={access}
-      email={email}
-      onRequest={(address, piece, role) => {
-        if (live) sendRequest(address, role, piece)
-        setRequested(true)
-      }}
-      onOpen={() => {
-        setHomePanel(null)
-        setStep(ISSUE)
-      }}
-      onSignOut={() => setAccess('signed-out')}
-      onSignIn={(address) => {
-        setEmail(address)
-        // On the live site, sign-in goes through the real Stoa sign-in page.
-        if (live) {
-          window.location.href = '/signin'
-          return 'link-sent'
-        }
-        if (signInAs === 'pending') return 'pending'
-        if (signInAs === 'unknown') return 'unknown'
-        setTimeout(() => setAccess('member'), 2400)
-        return 'link-sent'
-      }}
+    <Home
+      signedIn={signedIn}
+      intake={requested ? 'sent' : 'default'}
+      onNavigate={navigate}
+      onOpenNote={openNote}
+      onRequestAccess={requestAccess}
     />
   )
 }
