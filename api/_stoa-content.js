@@ -121,6 +121,8 @@ export function textToMemo({ slug, title, author, entity, date, subtitle, body }
       if (img && safeImageURL(img[2])) blocks.push({ type: 'img', src: safeImageURL(img[2]), alt: img[1] || '', ...(img[3] ? { caption: img[3] } : {}) })
       else if (line.startsWith('## ')) blocks.push({ type: 'h3', text: line.slice(3) })
       else if (line.startsWith('- ')) blocks.push({ type: 'li', text: line.slice(2) })
+      else if (line.startsWith('> ')) blocks.push({ type: 'quote', text: line.slice(2) })
+      else if (/^\d{1,3}\. /.test(line)) { const m = line.match(/^(\d{1,3})\. (.*)$/); blocks.push({ type: 'ol', n: Number(m[1]), text: m[2] }) }
       else blocks.push({ type: 'p', text: line })
     }
   }
@@ -134,6 +136,8 @@ export function memoToText(memo) {
   return (memo.sections || []).flatMap((s) => s.blocks || []).map((b) => {
     if (b.type === 'h3') return '## ' + b.text
     if (b.type === 'li') return '- ' + withLinks(b.text, b.links)
+    if (b.type === 'quote') return '> ' + withLinks(b.text, b.links)
+    if (b.type === 'ol') return (b.n || 1) + '. ' + withLinks(b.text, b.links)
     if (b.type === 'img') return imageLine(b)
     return withLinks(b.text, b.links)
   }).filter(Boolean).join('\n\n')
@@ -170,6 +174,7 @@ export function htmlToMemo({ slug, title, author, entity, date, subtitle, html }
       const text = /^h[1-4]$/i.test(tag) ? cleanText(part) : inlineMarkdown(part.replace(/<img\b[^>]*>/gi, ''))
       if (/^h[1-4]$/i.test(tag)) { if (text) blocks.push({ type: 'h3', text }) }
       else if (/^li$/i.test(tag)) { if (text) blocks.push({ type: 'li', text }) }
+      else if (/^blockquote$/i.test(tag)) { if (text) blocks.push({ type: 'quote', text }) }
       else if (text) blocks.push({ type: 'p', text })
       for (const m of part.matchAll(/<img\b[^>]*>/gi)) pushImage(m[0])
     }
@@ -189,7 +194,7 @@ export function htmlToMemo({ slug, title, author, entity, date, subtitle, html }
 }
 
 const normText = (v) => stripInline(v).replace(/\s+/g, ' ').trim().toLowerCase()
-const textOfBlock = (b) => b && (b.type === 'p' || b.type === 'h3' || b.type === 'li') ? normText(b.text) : ''
+const textOfBlock = (b) => b && (b.type === 'p' || b.type === 'h3' || b.type === 'li' || b.type === 'quote' || b.type === 'ol') ? normText(b.text) : ''
 
 // Repair an already-published imported piece without touching its text: add
 // source images that the old importer dropped, and refresh alt/caption data

@@ -1,5 +1,8 @@
-import { useMemo, useState } from 'react'
-import { renderInline } from './ArticleReader'
+import { lazy, Suspense, useMemo, useState } from 'react'
+import { MemoBody, TitleBlock, type Memo } from './ArticleReader'
+
+// Loaded only when a piece is opened, so readers never download the editor.
+const RichEditor = lazy(() => import('./RichEditor'))
 
 type PieceFull = { slug: string; title: string; mode: string; number: number; market: string; source: string; requestsFromLock: number; opens?: { opens: number; readers: number; last_opened_at: string } | null }
 type Draft = { id: string; title: string; summary: string; market: string; body: string; updated_at: string }
@@ -15,99 +18,6 @@ const MODES: { id: string; label: string; hint: string }[] = [
   { id: 'readers', label: 'Readers', hint: 'Everyone else sees the summary, a lock, and the request form.' },
 ]
 
-// Clipboard HTML -> the plain-text editor format, so images, headings, lists,
-// tables, links, bold and italic pasted from Substack, Google Docs or a web
-// page survive. Images become one-line Markdown image lines (the same form
-// the importer writes); links become [text](url); bold **x**; italic *x*;
-// table rows become text lines with cells split by " | ". Returns '' when the
-// HTML holds nothing richer than text, so a plain text paste is untouched.
-function htmlToEditorText(html: string): string {
-  const doc = new DOMParser().parseFromString(html, 'text/html')
-  if (!doc.body.querySelector('img, table, h1, h2, h3, h4, li, a[href], strong, b, em, i, span[style]')) return ''
-  const out: string[] = []
-  const clean = (t: string) => t.replace(/\s+/g, ' ').trim()
-  const imgLine = (img: Element, cap = '') => {
-    const src = img.getAttribute('src') || img.getAttribute('data-src') || ''
-    if (!/^https:\/\//i.test(src)) return ''
-    return '![' + clean(img.getAttribute('alt') || '').replace(/[\]]/g, ' ') + '](' + src.replace(/\s/g, '%20') + (cap ? ' "' + cap.replace(/"/g, "'") + '"' : '') + ')'
-  }
-  // Wraps text in a Markdown mark, keeping outer spaces outside the marks.
-  const wrap = (t: string, l: string, r = l) => {
-    const m = t.match(/^(\s*)([\s\S]*?)(\s*)$/)!
-    return m[2] ? m[1] + l + m[2] + r + m[3] : t
-  }
-  const inline = (node: Node, inLink = false): string => {
-    if (node.nodeType === 3) return (node.textContent || '').replace(/\s+/g, ' ')
-    if (node.nodeType !== 1) return ''
-    const el = node as HTMLElement
-    const tag = el.tagName.toLowerCase()
-    if (tag === 'br') return ' '
-    if (tag === 'img' || tag === 'script' || tag === 'style') return ''
-    const kids = () => [...el.childNodes].map((c) => inline(c, inLink || tag === 'a')).join('')
-    const style = (el.getAttribute('style') || '').toLowerCase()
-    const weight = style.match(/font-weight:\s*(\w+)/)?.[1] || ''
-    const normalWeight = weight === 'normal' || weight === '400' || weight === 'lighter'
-    const bold = ((tag === 'strong' || tag === 'b') && !normalWeight) || weight === 'bold' || weight === 'bolder' || Number(weight) >= 600
-    const italic = tag === 'em' || (tag === 'i' && !/font-style:\s*normal/.test(style)) || /font-style:\s*italic/.test(style)
-    let t = kids()
-    if (italic) t = wrap(t, '*')
-    if (bold) t = wrap(t, '**')
-    const href = el.getAttribute('href') || ''
-    if (tag === 'a' && !inLink && /^(https?:|mailto:)/i.test(href) && clean(t)) t = wrap(t, '[', '](' + href.replace(/\s/g, '%20').replace(/\)/g, '%29') + ')')
-    return t
-  }
-  const text = (el: Element) => clean(inline(el)).replace(/\*\*\*\*/g, '')
-  const walk = (el: Element) => {
-    const tag = el.tagName.toLowerCase()
-    if (tag === 'img') { const l = imgLine(el); if (l) out.push(l); return }
-    if (tag === 'figure') {
-      const img = el.querySelector('img')
-      const l = img ? imgLine(img, clean(el.querySelector('figcaption')?.textContent || '')) : ''
-      if (l) out.push(l)
-      return
-    }
-    if (tag === 'table') {
-      for (const row of el.querySelectorAll('tr')) {
-        const cells = [...row.children].map((c) => text(c)).filter(Boolean)
-        if (cells.length) out.push(cells.join(' | '))
-      }
-      return
-    }
-    if (/^h[1-6]$/.test(tag)) { const t = text(el).replace(/^\*\*([^*]+)\*\*$/, '$1'); if (t) out.push('## ' + t); return }
-    if (tag === 'li') { const t = text(el); if (t) out.push('- ' + t); return }
-    if (tag === 'ul' || tag === 'ol' || tag === 'div' || tag === 'section' || tag === 'article' || tag === 'body') { [...el.children].forEach(walk); if (!el.children.length) { const t = text(el); if (t) out.push(t) } return }
-    if (el.querySelector('img, table, p, h1, h2, h3, h4, li, div')) { [...el.children].forEach(walk); return }
-    const t = text(el); if (t) out.push(t)
-  }
-  // Loose text directly in the body (Google Docs wraps it in a <b> or <span>).
-  ;[...doc.body.children].forEach(walk)
-  return out.join('\n\n')
-}
-
-// Shows the body the way readers will see it: headings, lists, links, bold,
-// italic, and images fitted to the column, so formatting written as Markdown
-// in the text box is easy to check and a bad image link is easy to spot.
-function BodyPreview({ body }: { body: string }) {
-  const lines = useMemo(() => body.split(/\n/).map((l) => l.trim()).filter(Boolean), [body])
-  if (!lines.some((l) => /^!\[|^## |^- |\*|\]\(/.test(l))) return null
-  return <div className="mt-6 border-t border-rule pt-4">
-    <p className="font-sans text-sm text-muted">Preview</p>
-    <div className="mt-2 font-serif text-base leading-relaxed text-ink/90">
-      {lines.map((l, i) => {
-        const im = l.match(/^!\[([^\]]*)\]\((\S+?)(?:\s+"([^"]*)")?\)$/)
-        if (im) return <figure key={i} className="mt-4">
-          <img src={im[2]} alt={im[1]} loading="lazy" className="h-auto w-full max-w-full" onError={(e) => { e.currentTarget.style.display = 'none'; (e.currentTarget.nextElementSibling as HTMLElement | null)?.removeAttribute('hidden') }} />
-          <p hidden className="font-sans text-xs text-red-700">This image link does not load.</p>
-          {im[3] && <figcaption className="mt-1 font-sans text-xs text-muted">{im[3]}</figcaption>}
-        </figure>
-        if (l.startsWith('## ')) return <h3 key={i} className="mt-5 text-lg font-medium">{renderInline(l.slice(3))}</h3>
-        if (l.startsWith('- ')) return <p key={i} className="mt-2 pl-4">• {renderInline(l.slice(2))}</p>
-        return <p key={i} className="mt-3">{renderInline(l)}</p>
-      })}
-    </div>
-  </div>
-}
-
 export default function PiecesAdmin({ secret, pieces, drafts, review, onChanged }: {
   secret: string
   pieces: PieceFull[]
@@ -118,6 +28,7 @@ export default function PiecesAdmin({ secret, pieces, drafts, review, onChanged 
   const [tab, setTab] = useState<'all' | 'open' | 'closed'>('all')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [viewing, setViewing] = useState<null | Memo>(null)
   const [editing, setEditing] = useState<null | { slug?: string; draftId?: string; title: string; summary: string; market: string; body: string; mode: string; emailReaders: boolean }>(null)
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null)
   const [confirmingPiece, setConfirmingPiece] = useState<string | null>(null)
@@ -192,6 +103,13 @@ export default function PiecesAdmin({ secret, pieces, drafts, review, onChanged 
     if (r) setEditing({ slug: r.slug, title: r.title, summary: r.summary, market: r.market, body: r.body, mode: p.mode, emailReaders: false })
   }
 
+  async function viewPiece(p: PieceFull) {
+    setPieceNotice('')
+    if (p.source === 'code') { window.open('/research/' + encodeURIComponent(p.slug), '_blank', 'noreferrer'); return }
+    const r = await act({ action: 'load-piece', slug: p.slug })
+    if (r?.memo) setViewing(r.memo)
+  }
+
   async function saveChanges() {
     if (!editing?.slug) return
     const r = await act({ action: 'update-piece', slug: editing.slug, title: editing.title, summary: editing.summary, market: editing.market, body: editing.body })
@@ -225,6 +143,18 @@ export default function PiecesAdmin({ secret, pieces, drafts, review, onChanged 
 
   const words = editing ? editing.body.split(/\s+/).filter(Boolean).length : 0
 
+  // ---------- reader view (admins read any piece without a reader session) ----------
+  if (viewing) {
+    return <div className="min-h-0 flex-1 overflow-y-auto bg-paper font-serif text-ink">
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-rule bg-paper/95 px-5 py-3 font-sans text-sm backdrop-blur lg:px-8">
+        <button className="underline" onClick={() => setViewing(null)}>&larr; Pieces</button>
+        <a className="text-muted underline hover:text-ink" href={'/research/' + encodeURIComponent(viewing.slug)} target="_blank" rel="noreferrer">Open public link</a>
+      </div>
+      <TitleBlock meta={{ slug: viewing.slug, title: viewing.title, entity: viewing.entity, author: viewing.author, date: viewing.date, subtitle: viewing.subtitle }} />
+      <div className="mx-auto max-w-6xl px-6 pb-24 lg:px-10"><MemoBody memo={viewing} /></div>
+    </div>
+  }
+
   // ---------- editor ----------
   if (editing) {
     return <div className="min-h-0 flex-1 overflow-y-auto">
@@ -241,23 +171,9 @@ export default function PiecesAdmin({ secret, pieces, drafts, review, onChanged 
           <div>
             <input className="w-full border-0 bg-transparent font-serif text-4xl font-light leading-tight tracking-tight outline-none placeholder:text-muted/60" placeholder="Title" value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} />
             <input className="mt-4 w-full border-0 bg-transparent font-serif text-lg italic text-ink/75 outline-none placeholder:text-muted/60" placeholder="One-line summary" value={editing.summary} onChange={(e) => setEditing({ ...editing, summary: e.target.value })} />
-            <textarea className="mt-8 min-h-[420px] w-full border-0 bg-transparent font-serif text-base leading-relaxed outline-none placeholder:text-muted/60" placeholder="Write the piece, or paste from Substack, Google Docs or the web. Images, links, bold and italic come over as Markdown and show in the preview below. Blank line between paragraphs; ## for a heading; - for a list item." value={editing.body} onChange={(e) => setEditing({ ...editing, body: e.target.value })} onPaste={(e) => {
-              const ta = e.currentTarget
-              const html = e.clipboardData.getData('text/html')
-              const pasted = html ? htmlToEditorText(html) : ''
-              if (!pasted) {
-                if (!e.clipboardData.getData('text/plain') && [...e.clipboardData.files].some((f) => f.type.startsWith('image/'))) {
-                  e.preventDefault()
-                  setErr('Image files from your computer cannot be pasted yet. Copy the image from a web page (Substack, Docs) instead, so it keeps its link.')
-                }
-                return
-              }
-              e.preventDefault()
-              setErr('')
-              const before = editing.body.slice(0, ta.selectionStart), after = editing.body.slice(ta.selectionEnd)
-              setEditing({ ...editing, body: before + pasted + after })
-            }} />
-            <BodyPreview body={editing.body} />
+            <Suspense fallback={<p className="mt-8 font-sans text-sm text-muted">Opening the editor…</p>}>
+              <RichEditor key={editing.slug || editing.draftId || 'new'} value={editing.body} onChange={(body) => setEditing((e) => e ? { ...e, body } : e)} onError={setErr} />
+            </Suspense>
           </div>
           <aside className="space-y-6 border-t border-rule pt-6 lg:border-0 lg:pt-0">
             <label className="block text-sm text-muted">Market
@@ -341,6 +257,7 @@ export default function PiecesAdmin({ secret, pieces, drafts, review, onChanged 
           <span className="flex overflow-hidden border border-rule text-sm">
             {MODES.map((m) => <button key={m.id} disabled={busy} onClick={() => changeMode(p, m.id)} aria-pressed={p.mode === m.id} className={`px-3 py-1.5 ${p.mode === m.id ? 'bg-ink text-paper' : 'text-muted hover:text-ink'}`}>{m.label}</button>)}
           </span>
+          <button disabled={busy} className="text-xs text-muted underline hover:text-ink" onClick={() => viewPiece(p)}>View</button>
           {p.source !== 'code' && <button disabled={busy} className="text-xs text-muted underline hover:text-ink" onClick={() => openPiece(p)}>Edit</button>}
           {p.source === 'editor' && <button disabled={busy} className="text-xs text-muted underline hover:text-ink" onClick={async () => { setPieceNotice(''); const r = await act({ action: 'repair-piece-media', slug: p.slug, host: importHost || 'stoaresearch.substack.com', confirmTitle: p.title }); if (r) setPieceNotice(r.added ? `Restored ${r.added} image${r.added === 1 ? '' : 's'} from the Substack source. Text, slug, access and analytics were not changed.` : 'No missing source images found for this piece.') }}>Restore images</button>}
           <button disabled={busy} className="text-xs text-muted underline hover:text-ink" onClick={() => setConfirmingPiece(p.slug)}>Delete</button>
