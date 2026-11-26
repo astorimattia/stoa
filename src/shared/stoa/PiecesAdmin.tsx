@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { renderInline } from './ArticleReader'
 
 type PieceFull = { slug: string; title: string; mode: string; number: number; market: string; source: string; requestsFromLock: number; opens?: { opens: number; readers: number; last_opened_at: string } | null }
 type Draft = { id: string; title: string; summary: string; market: string; body: string; updated_at: string }
@@ -14,63 +15,95 @@ const MODES: { id: string; label: string; hint: string }[] = [
   { id: 'readers', label: 'Readers', hint: 'Everyone else sees the summary, a lock, and the request form.' },
 ]
 
-// Clipboard HTML -> the plain-text editor format, so images, headings, lists
-// and tables pasted from Substack, Google Docs or a web page survive. Images
-// become one-line Markdown image lines (the same form the importer writes);
+// Clipboard HTML -> the plain-text editor format, so images, headings, lists,
+// tables, links, bold and italic pasted from Substack, Google Docs or a web
+// page survive. Images become one-line Markdown image lines (the same form
+// the importer writes); links become [text](url); bold **x**; italic *x*;
 // table rows become text lines with cells split by " | ". Returns '' when the
-// HTML holds nothing richer than text, so a normal text paste is untouched.
+// HTML holds nothing richer than text, so a plain text paste is untouched.
 function htmlToEditorText(html: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html')
-  if (!doc.body.querySelector('img, table, h1, h2, h3, h4, li')) return ''
+  if (!doc.body.querySelector('img, table, h1, h2, h3, h4, li, a[href], strong, b, em, i, span[style]')) return ''
   const out: string[] = []
   const clean = (t: string) => t.replace(/\s+/g, ' ').trim()
+  const imgLine = (img: Element, cap = '') => {
+    const src = img.getAttribute('src') || img.getAttribute('data-src') || ''
+    if (!/^https:\/\//i.test(src)) return ''
+    return '![' + clean(img.getAttribute('alt') || '').replace(/[\]]/g, ' ') + '](' + src.replace(/\s/g, '%20') + (cap ? ' "' + cap.replace(/"/g, "'") + '"' : '') + ')'
+  }
+  // Wraps text in a Markdown mark, keeping outer spaces outside the marks.
+  const wrap = (t: string, l: string, r = l) => {
+    const m = t.match(/^(\s*)([\s\S]*?)(\s*)$/)!
+    return m[2] ? m[1] + l + m[2] + r + m[3] : t
+  }
+  const inline = (node: Node, inLink = false): string => {
+    if (node.nodeType === 3) return (node.textContent || '').replace(/\s+/g, ' ')
+    if (node.nodeType !== 1) return ''
+    const el = node as HTMLElement
+    const tag = el.tagName.toLowerCase()
+    if (tag === 'br') return ' '
+    if (tag === 'img' || tag === 'script' || tag === 'style') return ''
+    const kids = () => [...el.childNodes].map((c) => inline(c, inLink || tag === 'a')).join('')
+    const style = (el.getAttribute('style') || '').toLowerCase()
+    const weight = style.match(/font-weight:\s*(\w+)/)?.[1] || ''
+    const normalWeight = weight === 'normal' || weight === '400' || weight === 'lighter'
+    const bold = ((tag === 'strong' || tag === 'b') && !normalWeight) || weight === 'bold' || weight === 'bolder' || Number(weight) >= 600
+    const italic = tag === 'em' || (tag === 'i' && !/font-style:\s*normal/.test(style)) || /font-style:\s*italic/.test(style)
+    let t = kids()
+    if (italic) t = wrap(t, '*')
+    if (bold) t = wrap(t, '**')
+    const href = el.getAttribute('href') || ''
+    if (tag === 'a' && !inLink && /^(https?:|mailto:)/i.test(href) && clean(t)) t = wrap(t, '[', '](' + href.replace(/\s/g, '%20').replace(/\)/g, '%29') + ')')
+    return t
+  }
+  const text = (el: Element) => clean(inline(el)).replace(/\*\*\*\*/g, '')
   const walk = (el: Element) => {
     const tag = el.tagName.toLowerCase()
-    if (tag === 'img') {
-      const src = el.getAttribute('src') || el.getAttribute('data-src') || ''
-      if (/^https:\/\//i.test(src)) out.push('![' + clean(el.getAttribute('alt') || '').replace(/[\]]/g, ' ') + '](' + src.replace(/\s/g, '%20') + ')')
-      return
-    }
+    if (tag === 'img') { const l = imgLine(el); if (l) out.push(l); return }
     if (tag === 'figure') {
-      const cap = clean(el.querySelector('figcaption')?.textContent || '')
       const img = el.querySelector('img')
-      const src = img?.getAttribute('src') || ''
-      if (img && /^https:\/\//i.test(src)) out.push('![' + clean(img.getAttribute('alt') || '').replace(/[\]]/g, ' ') + '](' + src.replace(/\s/g, '%20') + (cap ? ' "' + cap.replace(/"/g, "'") + '"' : '') + ')')
+      const l = img ? imgLine(img, clean(el.querySelector('figcaption')?.textContent || '')) : ''
+      if (l) out.push(l)
       return
     }
     if (tag === 'table') {
       for (const row of el.querySelectorAll('tr')) {
-        const cells = [...row.children].map((c) => clean(c.textContent || '')).filter(Boolean)
+        const cells = [...row.children].map((c) => text(c)).filter(Boolean)
         if (cells.length) out.push(cells.join(' | '))
       }
       return
     }
-    if (/^h[1-4]$/.test(tag)) { const t = clean(el.textContent || ''); if (t) out.push('## ' + t); return }
-    if (tag === 'li') { const t = clean(el.textContent || ''); if (t) out.push('- ' + t); return }
-    if (tag === 'p' || tag === 'blockquote') {
-      if (el.querySelector('img')) { [...el.children].forEach(walk); const t = clean(el.textContent || ''); if (t) out.push(t); return }
-      const t = clean(el.textContent || ''); if (t) out.push(t); return
-    }
-    if (el.children.length) [...el.children].forEach(walk)
-    else { const t = clean(el.textContent || ''); if (t) out.push(t) }
+    if (/^h[1-6]$/.test(tag)) { const t = text(el).replace(/^\*\*([^*]+)\*\*$/, '$1'); if (t) out.push('## ' + t); return }
+    if (tag === 'li') { const t = text(el); if (t) out.push('- ' + t); return }
+    if (tag === 'ul' || tag === 'ol' || tag === 'div' || tag === 'section' || tag === 'article' || tag === 'body') { [...el.children].forEach(walk); if (!el.children.length) { const t = text(el); if (t) out.push(t) } return }
+    if (el.querySelector('img, table, p, h1, h2, h3, h4, li, div')) { [...el.children].forEach(walk); return }
+    const t = text(el); if (t) out.push(t)
   }
+  // Loose text directly in the body (Google Docs wraps it in a <b> or <span>).
   ;[...doc.body.children].forEach(walk)
   return out.join('\n\n')
 }
 
-// Shows the image lines in the body as pictures, fitted to the column, so an
-// image line reads as an image and a bad link is easy to spot.
+// Shows the body the way readers will see it: headings, lists, links, bold,
+// italic, and images fitted to the column, so formatting written as Markdown
+// in the text box is easy to check and a bad image link is easy to spot.
 function BodyPreview({ body }: { body: string }) {
-  const images = useMemo(() => [...body.matchAll(/^!\[([^\]]*)\]\((\S+?)(?:\s+"([^"]*)")?\)$/gm)].map((m) => ({ alt: m[1], src: m[2], caption: m[3] || '' })), [body])
-  if (!images.length) return null
+  const lines = useMemo(() => body.split(/\n/).map((l) => l.trim()).filter(Boolean), [body])
+  if (!lines.some((l) => /^!\[|^## |^- |\*|\]\(/.test(l))) return null
   return <div className="mt-6 border-t border-rule pt-4">
-    <p className="text-sm text-muted">Images in this piece ({images.length})</p>
-    <div className="mt-3 grid gap-4 sm:grid-cols-2">
-      {images.map((im, i) => <figure key={i + im.src} className="border border-rule bg-white/40 p-2">
-        <img src={im.src} alt={im.alt} loading="lazy" className="h-auto w-full max-w-full" onError={(e) => { e.currentTarget.style.display = 'none'; (e.currentTarget.nextElementSibling as HTMLElement | null)?.removeAttribute('hidden') }} />
-        <p hidden className="text-xs text-red-700">This image link does not load.</p>
-        {im.caption && <figcaption className="mt-1 text-xs text-muted">{im.caption}</figcaption>}
-      </figure>)}
+    <p className="font-sans text-sm text-muted">Preview</p>
+    <div className="mt-2 font-serif text-base leading-relaxed text-ink/90">
+      {lines.map((l, i) => {
+        const im = l.match(/^!\[([^\]]*)\]\((\S+?)(?:\s+"([^"]*)")?\)$/)
+        if (im) return <figure key={i} className="mt-4">
+          <img src={im[2]} alt={im[1]} loading="lazy" className="h-auto w-full max-w-full" onError={(e) => { e.currentTarget.style.display = 'none'; (e.currentTarget.nextElementSibling as HTMLElement | null)?.removeAttribute('hidden') }} />
+          <p hidden className="font-sans text-xs text-red-700">This image link does not load.</p>
+          {im[3] && <figcaption className="mt-1 font-sans text-xs text-muted">{im[3]}</figcaption>}
+        </figure>
+        if (l.startsWith('## ')) return <h3 key={i} className="mt-5 text-lg font-medium">{renderInline(l.slice(3))}</h3>
+        if (l.startsWith('- ')) return <p key={i} className="mt-2 pl-4">• {renderInline(l.slice(2))}</p>
+        return <p key={i} className="mt-3">{renderInline(l)}</p>
+      })}
     </div>
   </div>
 }
@@ -196,7 +229,7 @@ export default function PiecesAdmin({ secret, pieces, drafts, review, onChanged 
           <div>
             <input className="w-full border-0 bg-transparent font-serif text-4xl font-light leading-tight tracking-tight outline-none placeholder:text-muted/60" placeholder="Title" value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} />
             <input className="mt-4 w-full border-0 bg-transparent font-serif text-lg italic text-ink/75 outline-none placeholder:text-muted/60" placeholder="One-line summary" value={editing.summary} onChange={(e) => setEditing({ ...editing, summary: e.target.value })} />
-            <textarea className="mt-8 min-h-[420px] w-full border-0 bg-transparent font-serif text-base leading-relaxed outline-none placeholder:text-muted/60" placeholder="Write the piece, or paste from Substack, Google Docs or the web. Images come over as image lines. Blank line between paragraphs; ## for a heading; - for a list item." value={editing.body} onChange={(e) => setEditing({ ...editing, body: e.target.value })} onPaste={(e) => {
+            <textarea className="mt-8 min-h-[420px] w-full border-0 bg-transparent font-serif text-base leading-relaxed outline-none placeholder:text-muted/60" placeholder="Write the piece, or paste from Substack, Google Docs or the web. Images, links, bold and italic come over as Markdown and show in the preview below. Blank line between paragraphs; ## for a heading; - for a list item." value={editing.body} onChange={(e) => setEditing({ ...editing, body: e.target.value })} onPaste={(e) => {
               const ta = e.currentTarget
               const html = e.clipboardData.getData('text/html')
               const pasted = html ? htmlToEditorText(html) : ''
