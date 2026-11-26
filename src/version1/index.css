@@ -1,34 +1,36 @@
 /* @import url() FONT IMPORTS MUST ALWAYS BE AT THE VERY TOP OF THIS FILE, ABOVE THE TAILWIND IMPORT — DO NOT DELETE THIS COMMENT */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500&display=swap');
 
 /* CRITICAL: THE FOLLOWING TAILWIND IMPORT MUST NEVER BE DELETED — DO NOT DELETE THIS COMMENT */
 @import 'tailwindcss';
 /* END TAILWIND IMPORTS — ALL OTHER CSS MUST GO BELOW THIS LINE */
 
+/* Stoa palette: white and black, with the olive of the painting's trees for the voices */
 @theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --font-serif: 'Newsreader', Georgia, serif;
-  --color-paper: #f2ede3;
-  --color-paper-deep: #e8e1d3;
-  --color-ink: #1b1915;
-  --color-muted: #6b645a;
-  --color-rule: #cfc6b6;
-  --color-accent: #9c3f24;
-  --ease-soft: cubic-bezier(0.23, 1, 0.32, 1);
+  --color-olive: #2B3424;
+  --color-olive-soft: #C9CFBC;
+  --color-paper: #FFFFFF;
+  --color-ink: #111111;
+  --color-quiet: #6F6F6F;
+  --color-rule: #E4E4E4;
+  --color-stone: #EFEFEF;
+
+  --font-sans: 'Libre Franklin', -apple-system, 'Helvetica Neue', Arial, sans-serif;
+
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@layer base {
+  button:not(:disabled),
+  [role='button'] {
+    cursor: pointer;
+  }
 }
 
 body {
+  margin: 0;
   background: var(--color-paper);
-  color: var(--color-ink);
-  font-family: var(--font-serif);
   -webkit-font-smoothing: antialiased;
-}
-
-/* Anything clickable shows the hand pointer (Tailwind v4 resets buttons to the default arrow) */
-button:not(:disabled),
-[role="button"]:not([aria-disabled="true"]),
-a[href],
-label[for],
-select {
-  cursor: pointer;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
