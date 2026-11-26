@@ -4,6 +4,10 @@ import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
 import Image from '@tiptap/extension-image'
 import Placeholder from '@tiptap/extension-placeholder'
+import Table from '@tiptap/extension-table'
+import TableRow from '@tiptap/extension-table-row'
+import TableHeader from '@tiptap/extension-table-header'
+import TableCell from '@tiptap/extension-table-cell'
 import { docToText, htmlToEditorText, textToHtml } from './editorFormat'
 
 // The visual editor for a piece body. It shows the piece in Stoa's own
@@ -32,6 +36,16 @@ function Toolbar({ editor }: { editor: Editor }) {
     <button type="button" title="Bulleted list" className={b(editor.isActive('bulletList'))} onClick={() => editor.chain().focus().toggleBulletList().run()}>• List</button>
     <button type="button" title="Numbered list" className={b(editor.isActive('orderedList'))} onClick={() => editor.chain().focus().toggleOrderedList().run()}>1. List</button>
     <button type="button" title="Quote" className={b(editor.isActive('blockquote'))} onClick={() => editor.chain().focus().toggleBlockquote().run()}>Quote</button>
+    <button type="button" title="Divider between sections (or type --- on an empty line)" className={tool} onClick={() => editor.chain().focus().setHorizontalRule().run()}>Divider</button>
+    {editor.isActive('table')
+      ? <>
+          <button type="button" title="Add a row below" className={tool} onClick={() => editor.chain().focus().addRowAfter().run()}>+ Row</button>
+          <button type="button" title="Add a column to the right" className={tool} onClick={() => editor.chain().focus().addColumnAfter().run()}>+ Column</button>
+          <button type="button" title="Delete this row" className={tool} disabled={!editor.can().deleteRow()} onClick={() => editor.chain().focus().deleteRow().run()}>− Row</button>
+          <button type="button" title="Delete this column" className={tool} disabled={!editor.can().deleteColumn()} onClick={() => editor.chain().focus().deleteColumn().run()}>− Column</button>
+          <button type="button" title="Delete the whole table" className={tool} onClick={() => editor.chain().focus().deleteTable().run()}>Delete table</button>
+        </>
+      : <button type="button" title="Table (the first row is the header)" className={tool} onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}>Table</button>}
     <span className="mx-1 h-4 w-px bg-rule" />
     <button type="button" title="Undo (Ctrl/Cmd+Z)" className={tool} disabled={!editor.can().undo()} onClick={() => editor.chain().focus().undo().run()}>Undo</button>
     <button type="button" title="Redo" className={tool} disabled={!editor.can().redo()} onClick={() => editor.chain().focus().redo().run()}>Redo</button>
@@ -42,9 +56,14 @@ export default function RichEditor({ value, onChange, onError }: { value: string
   const last = useRef(value)
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ heading: { levels: [2] }, code: false, codeBlock: false, strike: false, horizontalRule: false }),
+      StarterKit.configure({ heading: { levels: [2] }, code: false, codeBlock: false, strike: false }),
       Link.configure({ openOnClick: false, autolink: true, protocols: ['mailto'], HTMLAttributes: { rel: 'noreferrer', target: null } }),
       Image.configure({ inline: false, allowBase64: false }),
+      Table.configure({ resizable: false }),
+      TableRow,
+      // Only the first row is a header, to match how pieces store tables.
+      TableHeader,
+      TableCell,
       Placeholder.configure({ placeholder: 'Write the piece, or paste from Substack, Google Docs or the web.' }),
     ],
     content: textToHtml(value),

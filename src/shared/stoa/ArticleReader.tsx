@@ -17,6 +17,7 @@ type MemoBlock =
   | { type: 'ol'; n: number; text: string; links?: MemoLink[] }
   | { type: 'quote'; text: string; links?: MemoLink[] }
   | { type: 'table'; head: string[]; rows: string[][] }
+  | { type: 'hr' }
 
 /** Renders text with its source links, replacing each link's text (first
  *  occurrence, in order) with an anchor. Links absent from the text are
@@ -284,6 +285,7 @@ export function MemoBody({ memo }: { memo: Memo }) {
                     )}
                   </figure>
                 )
+              if (b.type === 'hr') return <hr key={i} className="my-10 border-0 border-t border-rule" />
               if (b.type === 'h3')
                 return (
                   <h3 key={i} className="mt-8 text-xl font-medium tracking-tight">

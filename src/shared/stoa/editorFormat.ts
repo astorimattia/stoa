@@ -2,11 +2,16 @@
 // tables, links, bold and italic pasted from Substack, Google Docs or a web
 // page survive. Images become one-line Markdown image lines (the same form
 // the importer writes); links become [text](url); bold **x**; italic *x*;
-// table rows become text lines with cells split by " | ". Returns '' when the
+// tables become "| a | b |" rows; dividers "---". Returns '' when the
 // HTML holds nothing richer than text, so a plain text paste is untouched.
+export const tableLine = (cells: string[]) => '| ' + cells.map((c) => String(c ?? '').replace(/[|\n\r]/g, '/').trim()).join(' | ') + ' |'
+const isTableLine = (line: string) => /^\|.*\|$/.test(line) && line.length > 1
+const tableCells = (line: string) => line.slice(1, -1).split('|').map((c) => c.trim())
+const isDivider = (line: string) => /^(-{3,}|\*{3,}|_{3,})$/.test(line)
+
 export function htmlToEditorText(html: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html')
-  if (!doc.body.querySelector('img, table, h1, h2, h3, h4, li, blockquote, a[href], strong, b, em, i, span[style]')) return ''
+  if (!doc.body.querySelector('img, table, hr, h1, h2, h3, h4, li, blockquote, a[href], strong, b, em, i, span[style]')) return ''
   const out: string[] = []
   const clean = (t: string) => t.replace(/\s+/g, ' ').trim()
   const imgLine = (img: Element, cap = '') => {
@@ -50,10 +55,12 @@ export function htmlToEditorText(html: string): string {
       return
     }
     if (tag === 'table') {
-      for (const row of el.querySelectorAll('tr')) {
-        const cells = Array.from(row.children).map((c) => text(c)).filter(Boolean)
-        if (cells.length) out.push(cells.join(' | '))
-      }
+      const rows = Array.from(el.querySelectorAll('tr'))
+        .map((row) => Array.from(row.children).map((c) => clean(c.textContent || '')))
+        .filter((cells) => cells.some(Boolean))
+      const width = Math.max(0, ...rows.map((r) => r.length))
+      if (width > 1) out.push(rows.map((r) => tableLine([...r, ...Array(width - r.length).fill('')])).join('\n'))
+      else rows.forEach((r) => { if (r[0]) out.push(r[0]) })
       return
     }
     if (/^h[1-6]$/.test(tag)) { const t = text(el).replace(/^\*\*([^*]+)\*\*$/, '$1'); if (t) out.push('## ' + t); return }
@@ -70,7 +77,7 @@ export function htmlToEditorText(html: string): string {
       parts.filter(Boolean).forEach((t) => out.push('> ' + t))
       return
     }
-    if (tag === 'hr') return
+    if (tag === 'hr') { if (out.length && out[out.length - 1] !== '---') out.push('---'); return }
     if (tag === 'ul' || tag === 'ol' || tag === 'div' || tag === 'section' || tag === 'article' || tag === 'body') { [...el.children].forEach(walk); if (!el.children.length) { const t = text(el); if (t) out.push(t) } return }
     if (el.querySelector('img, table, p, h1, h2, h3, h4, li, div')) { [...el.children].forEach(walk); return }
     const t = text(el); if (t) out.push(t)
@@ -84,7 +91,8 @@ export function htmlToEditorText(html: string): string {
 // ---------- text format <-> rich editor ----------
 // The stored body stays the same line format the server already reads:
 // one block per line; "## " heading, "- " bullet, "1. " numbered item,
-// "> " quote, "![alt](src \"caption\")" image; inline [text](url),
+// "> " quote, "![alt](src \"caption\")" image, "---" divider, and
+// "| a | b |" table rows (one line per row, header first); inline [text](url),
 // **bold** and *italic*. The visual editor converts to and from it, so
 // published pages, drafts and Substack imports keep working unchanged.
 
@@ -98,11 +106,23 @@ export function inlineToHtml(t: string): string {
 }
 
 export function textToHtml(body: string): string {
-  const lines = String(body || '').split(/\n/).map((l) => l.trim()).filter(Boolean)
+  const lines = String(body || '').split(/\n/).map((l) => l.trim())
   const out: string[] = []
   let list: '' | 'ul' | 'ol' = ''
   const close = () => { if (list) { out.push(`</${list}>`); list = '' } }
+  let table: string[][] | null = null
+  const flushTable = () => {
+    if (!table) return
+    const [head, ...rows] = table
+    out.push('<table><tbody><tr>' + head.map((c) => `<th><p>${esc(c)}</p></th>`).join('') + '</tr>' +
+      rows.map((r) => '<tr>' + head.map((_, k) => `<td><p>${esc(r[k] || '')}</p></td>`).join('') + '</tr>').join('') + '</tbody></table>')
+    table = null
+  }
   for (const line of lines) {
+    if (!line) { flushTable(); continue }
+    if (isTableLine(line)) { close(); (table ||= []).push(tableCells(line)); continue }
+    flushTable()
+    if (isDivider(line)) { close(); out.push('<hr>'); continue }
     const img = line.match(/^!\[([^\]]*)\]\((\S+?)(?:\s+"([^"]*)")?\)$/)
     const ol = line.match(/^(\d{1,3})\. (.*)$/)
     if (line.startsWith('- ')) { if (list !== 'ul') { close(); out.push('<ul>'); list = 'ul' } out.push(`<li><p>${inlineToHtml(line.slice(2))}</p></li>`); continue }
@@ -114,6 +134,7 @@ export function textToHtml(body: string): string {
     else out.push(`<p>${inlineToHtml(line)}</p>`)
   }
   close()
+  flushTable()
   return out.join('')
 }
 
@@ -150,6 +171,9 @@ function inlineToText(nodes: PMNode[] = []): string {
   return out.replace(/\*\*\*\*/g, '').replace(/\s+/g, ' ').trim()
 }
 
+// Table cells are stored as plain text.
+const plain = (nodes: PMNode[] = []) => nodes.map((n) => n.type === 'text' ? n.text || '' : ' ').join('').replace(/\s+/g, ' ').trim()
+
 export function docToText(doc: PMNode): string {
   const out: string[] = []
   const imgLine = (a: Record<string, any> = {}) => '![' + String(a.alt || '').replace(/[\]\n\r]/g, ' ') + '](' + a.src + (a.title ? ' "' + String(a.title).replace(/["\n\r]/g, "'") + '"' : '') + ')'
@@ -161,6 +185,15 @@ export function docToText(doc: PMNode): string {
     else if (n.type === 'orderedList') { let k = Number(n.attrs?.start || 1); (n.content || []).forEach((li) => { const t = itemText(li); if (t) out.push((k++) + '. ' + t) }) }
     else if (n.type === 'blockquote') (n.content || []).forEach((c) => { const t = inlineToText(c.content); if (t) out.push('> ' + t) })
     else if (n.type === 'image' && /^https:\/\//i.test(n.attrs?.src || '')) out.push(imgLine(n.attrs))
+    else if (n.type === 'horizontalRule') { if (out.length && out[out.length - 1] !== '---') out.push('---') }
+    else if (n.type === 'table') {
+      const cellText = (c: PMNode) => (c.content || []).map((p) => plain(p.content)).filter(Boolean).join(' ')
+      const rows = (n.content || []).map((r) => (r.content || []).map(cellText)).filter((r, k) => k === 0 || r.some(Boolean))
+      const width = Math.max(0, ...rows.map((r) => r.length))
+      if (rows.length && width) out.push(rows.map((r) => tableLine([...r, ...Array(width - r.length).fill('')])).join('\n'))
+    }
   }
+  while (out[0] === '---') out.shift()
+  while (out[out.length - 1] === '---') out.pop()
   return out.join('\n\n')
 }

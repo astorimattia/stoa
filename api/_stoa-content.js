@@ -112,11 +112,24 @@ const withLinks = (text, links) => {
 }
 const imageLine = (b) => '![' + String(b.alt || '').replace(/[\]\n\r]/g, ' ') + '](' + b.src + (b.caption ? ' "' + String(b.caption).replace(/["\n\r]/g, "'") + '"' : '') + ')'
 
+// "| a | b |" lines -> table cells. The first row of a run is the header.
+const isTableLine = (line) => /^\|.*\|$/.test(line) && line.length > 1
+const tableCells = (line) => line.slice(1, -1).split('|').map((c) => c.trim())
+const tableLine = (cells) => '| ' + cells.map((c) => String(c ?? '').replace(/[|\n\r]/g, '/').trim()).join(' | ') + ' |'
+
 export function textToMemo({ slug, title, author, entity, date, subtitle, body }) {
   const blocks = []
   for (const para of String(body || '').split(/\n\s*\n/)) {
     const lines = para.split('\n').map((l) => l.trim()).filter(Boolean)
+    let table = null
     for (const line of lines) {
+      if (isTableLine(line)) {
+        const cells = tableCells(line)
+        if (!table) { table = { type: 'table', head: cells, rows: [] }; blocks.push(table) } else table.rows.push(cells)
+        continue
+      }
+      table = null
+      if (/^(-{3,}|\*{3,}|_{3,})$/.test(line)) { blocks.push({ type: 'hr' }); continue }
       const img = line.match(/^!\[([^\]]*)\]\((\S+?)(?:\s+"([^"]*)")?\)$/)
       if (img && safeImageURL(img[2])) blocks.push({ type: 'img', src: safeImageURL(img[2]), alt: img[1] || '', ...(img[3] ? { caption: img[3] } : {}) })
       else if (line.startsWith('## ')) blocks.push({ type: 'h3', text: line.slice(3) })
@@ -139,6 +152,8 @@ export function memoToText(memo) {
     if (b.type === 'quote') return '> ' + withLinks(b.text, b.links)
     if (b.type === 'ol') return (b.n || 1) + '. ' + withLinks(b.text, b.links)
     if (b.type === 'img') return imageLine(b)
+    if (b.type === 'hr') return '---'
+    if (b.type === 'table') return [b.head || [], ...(b.rows || [])].map(tableLine).join('\n')
     return withLinks(b.text, b.links)
   }).filter(Boolean).join('\n\n')
 }
@@ -151,6 +166,7 @@ export function htmlToMemo({ slug, title, author, entity, date, subtitle, html }
   const cleaned = String(html || '')
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<hr\b[^>]*>/gi, '\n\n<hr>\n\n')
     .replace(/<(p|h1|h2|h3|h4|li|blockquote)[^>]*>/gi, '\n\n<$1>')
   const figureRe = /<figure\b[\s\S]*?<\/figure>/gi
   const tokens = []
@@ -170,6 +186,7 @@ export function htmlToMemo({ slug, title, author, entity, date, subtitle, html }
   const pushHtml = (value) => {
     const parts = String(value || '').split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean)
     for (const part of parts) {
+      if (/^<hr>$/i.test(part)) { if (blocks.length && blocks[blocks.length - 1].type !== 'hr') blocks.push({ type: 'hr' }); continue }
       const tag = (part.match(/^<(p|h1|h2|h3|h4|li|blockquote)>/i) || [])[1] || ''
       const text = /^h[1-4]$/i.test(tag) ? cleanText(part) : inlineMarkdown(part.replace(/<img\b[^>]*>/gi, ''))
       if (/^h[1-4]$/i.test(tag)) { if (text) blocks.push({ type: 'h3', text }) }
