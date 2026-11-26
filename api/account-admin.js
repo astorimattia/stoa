@@ -258,7 +258,7 @@ export default async function handler(req, res) {
         if (!row) return res.status(404).json({ error: 'This piece cannot be edited here.' })
         const memo = typeof row.memo === 'string' ? JSON.parse(row.memo) : row.memo
         await audit(ip, action, slug, true)
-        return res.status(200).json({ slug, title: row.title, summary: row.dek || '', market: row.market || '', body: memoToText(memo || {}) })
+        return res.status(200).json({ slug, title: row.title, summary: row.dek || '', market: row.market || '', body: memoToText(memo || {}), memo: memo || null })
       }
 
       if (action === 'update-piece') {

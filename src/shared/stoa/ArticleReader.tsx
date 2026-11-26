@@ -14,6 +14,8 @@ type MemoBlock =
   | { type: 'img'; src: string; minWidth?: number; alt?: string; caption?: string; links?: MemoLink[] }
   | { type: 'h3'; text: string }
   | { type: 'li'; text: string; links?: MemoLink[] }
+  | { type: 'ol'; n: number; text: string; links?: MemoLink[] }
+  | { type: 'quote'; text: string; links?: MemoLink[] }
   | { type: 'table'; head: string[]; rows: string[][] }
 
 /** Renders text with its source links, replacing each link's text (first
@@ -261,6 +263,100 @@ export function Gate({ meta, onBack, accessDenied }: { meta: ReaderMeta; onBack?
 }
 
 
+/** The article body exactly as readers see it. Also used by the admin
+ *  "View" screen, so admins can read any piece without a reader session. */
+export function MemoBody({ memo }: { memo: Memo }) {
+  return (
+  <article className="mx-auto min-w-0 max-w-[680px]">
+    {memo.sections.map((s) => (
+      <section key={s.id} id={s.id} className="mt-14 first:mt-0">
+        {s.label && <h2 className="text-3xl font-light tracking-tight">{s.label}</h2>}
+        {s.blocks
+          ? s.blocks.map((b, i) => {
+              if (b.type === 'img')
+                return (
+                  <figure key={i} className="mt-8 overflow-x-auto">
+                    <img src={b.src} alt={b.alt || 'Chart from the article.'} className="w-full" style={b.minWidth ? { minWidth: b.minWidth } : undefined} loading="lazy" />
+                    {b.caption && (
+                      <figcaption className="mt-2 font-sans text-xs leading-relaxed text-muted">
+                        {renderText(b.caption, b.links)}
+                      </figcaption>
+                    )}
+                  </figure>
+                )
+              if (b.type === 'h3')
+                return (
+                  <h3 key={i} className="mt-8 text-xl font-medium tracking-tight">
+                    {renderInline(b.text)}
+                  </h3>
+                )
+              if (b.type === 'table')
+                return (
+                  <div key={i} className="mt-8 overflow-x-auto">
+                    <table className="w-full min-w-[560px] border-collapse font-sans text-sm">
+                      <thead>
+                        <tr>
+                          {b.head.map((h, j) => (
+                            <th key={j} className="border-b border-ink/20 pb-2 pr-4 text-left font-medium text-ink last:pr-0">
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {b.rows.map((r, j) => (
+                          <tr key={j} className="border-b border-rule last:border-0">
+                            {r.map((c, k) => (
+                              <td key={k} className="py-2 pr-4 align-top text-ink/85 last:pr-0">{c}</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              if (b.type === 'li' || b.type === 'ol')
+                return (
+                  <p key={i} className="mt-3 pl-7 -indent-7 text-xl leading-[1.65] text-ink/90">
+                    <span className="inline-block w-7 indent-0 text-ink/60">{b.type === 'ol' ? `${b.n}.` : '•'}</span>
+                    {renderText(b.text, b.links)}
+                  </p>
+                )
+              if (b.type === 'quote')
+                return (
+                  <blockquote key={i} className="mt-5 border-l-2 border-ink/30 pl-5 text-xl italic leading-[1.65] text-ink/80">
+                    {renderText(b.text, b.links)}
+                  </blockquote>
+                )
+              return (
+                <p key={i} className="mt-5 text-xl leading-[1.65] text-ink/90">
+                  {renderText(b.text, b.links)}
+                </p>
+              )
+            })
+          : (s.paragraphs || []).map((p, i) => (
+              <p key={i} className="mt-5 text-xl leading-[1.65] text-ink/90">
+                {p}
+              </p>
+            ))}
+        {s.items?.map((it) => (
+          <div key={it.title} className="mt-8">
+            <h3 className="text-xl font-medium tracking-tight">{it.title}</h3>
+            <p className="mt-2 text-xl leading-[1.65] text-ink/90">{it.body}</p>
+          </div>
+        ))}
+      </section>
+    ))}
+
+    <p className="mt-16 border-t border-rule pt-5 font-sans text-xs leading-relaxed text-muted">
+      {memo.disclosure ? `Disclosure: ${memo.disclosure} ` : ''}Stoa is published for information only and is not investment advice.
+    </p>
+  </article>
+  )
+}
+
+export { TitleBlock }
+
 export default function ArticleReader({ meta, onBack }: { meta: ReaderMeta; onBack?: () => void }) {
   const [state, setState] = useState<LoadState>({ kind: 'loading' })
 
@@ -332,84 +428,7 @@ export default function ArticleReader({ meta, onBack }: { meta: ReaderMeta; onBa
       <TitleBlock meta={{ ...meta, subtitle: memo.subtitle ?? meta.subtitle }} />
 
       <div className="mx-auto max-w-6xl px-6 pb-24 lg:px-10">
-        <article className="mx-auto min-w-0 max-w-[680px]">
-          {memo.sections.map((s) => (
-            <section key={s.id} id={s.id} className="mt-14 first:mt-0">
-              {s.label && <h2 className="text-3xl font-light tracking-tight">{s.label}</h2>}
-              {s.blocks
-                ? s.blocks.map((b, i) => {
-                    if (b.type === 'img')
-                      return (
-                        <figure key={i} className="mt-8 overflow-x-auto">
-                          <img src={b.src} alt={b.alt || 'Chart from the article.'} className="w-full" style={b.minWidth ? { minWidth: b.minWidth } : undefined} loading="lazy" />
-                          {b.caption && (
-                            <figcaption className="mt-2 font-sans text-xs leading-relaxed text-muted">
-                              {renderText(b.caption, b.links)}
-                            </figcaption>
-                          )}
-                        </figure>
-                      )
-                    if (b.type === 'h3')
-                      return (
-                        <h3 key={i} className="mt-8 text-xl font-medium tracking-tight">
-                          {renderInline(b.text)}
-                        </h3>
-                      )
-                    if (b.type === 'table')
-                      return (
-                        <div key={i} className="mt-8 overflow-x-auto">
-                          <table className="w-full min-w-[560px] border-collapse font-sans text-sm">
-                            <thead>
-                              <tr>
-                                {b.head.map((h, j) => (
-                                  <th key={j} className="border-b border-ink/20 pb-2 pr-4 text-left font-medium text-ink last:pr-0">
-                                    {h}
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {b.rows.map((r, j) => (
-                                <tr key={j} className="border-b border-rule last:border-0">
-                                  {r.map((c, k) => (
-                                    <td key={k} className="py-2 pr-4 align-top text-ink/85 last:pr-0">{c}</td>
-                                  ))}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )
-                    if (b.type === 'li')
-                      return (
-                        <p key={i} className="mt-5 text-xl leading-[1.65] text-ink/90">
-                          {renderText(b.text, b.links)}
-                        </p>
-                      )
-                    return (
-                      <p key={i} className="mt-5 text-xl leading-[1.65] text-ink/90">
-                        {renderText(b.text, b.links)}
-                      </p>
-                    )
-                  })
-                : (s.paragraphs || []).map((p, i) => (
-                    <p key={i} className="mt-5 text-xl leading-[1.65] text-ink/90">
-                      {p}
-                    </p>
-                  ))}
-              {s.items?.map((it) => (
-                <div key={it.title} className="mt-8">
-                  <h3 className="text-xl font-medium tracking-tight">{it.title}</h3>
-                  <p className="mt-2 text-xl leading-[1.65] text-ink/90">{it.body}</p>
-                </div>
-              ))}
-            </section>
-          ))}
-
-          <p className="mt-16 border-t border-rule pt-5 font-sans text-xs leading-relaxed text-muted">
-            {memo.disclosure ? `Disclosure: ${memo.disclosure} ` : ''}Stoa is published for information only and is not investment advice.
-          </p>
-        </article>
+        <MemoBody memo={memo} />
       </div>
       <IssueBottom meta={meta} />
       <BottomMark />
