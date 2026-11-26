@@ -1,18 +1,49 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Lock } from 'lucide-react'
-import { RoleChoice, type Role } from './RoleChoice'
-import { getReaderToken } from './readerToken'
+import { legacyHeaders } from './legacyBridge'
+import { authClient } from './authClient'
+import { SignInCard, RequestAccessCard } from './SignIn'
 
-/** The reading link for this visit: the URL's, else the one kept on this device. */
-const currentToken = () =>
-  (typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('t')) || getReaderToken()
+/** Account-based access: a Better Auth session proves the email; the
+ *  server decides per piece what that account may read. */
 
 type MemoItem = { title: string; body: string }
+type MemoLink = { text: string; href: string }
 type MemoBlock =
-  | { type: 'p'; text: string }
-  | { type: 'img'; src: string; alt?: string }
+  | { type: 'p'; text: string; links?: MemoLink[] }
+  | { type: 'img'; src: string; minWidth?: number; alt?: string; caption?: string; links?: MemoLink[] }
   | { type: 'h3'; text: string }
-  | { type: 'li'; text: string }
+  | { type: 'li'; text: string; links?: MemoLink[] }
+  | { type: 'table'; head: string[]; rows: string[][] }
+
+/** Renders text with its source links, replacing each link's text (first
+ *  occurrence, in order) with an anchor. Links absent from the text are
+ *  skipped, so a missing phrase never corrupts the paragraph. */
+function renderLinked(text: string, links?: MemoLink[]): React.ReactNode {
+  if (!links || links.length === 0) return text
+  const nodes: React.ReactNode[] = []
+  let rest = text
+  let key = 0
+  for (const l of links) {
+    const idx = rest.indexOf(l.text)
+    if (idx === -1) continue
+    if (idx > 0) nodes.push(rest.slice(0, idx))
+    nodes.push(
+      <a
+        key={key++}
+        href={l.href}
+        target="_blank"
+        rel="noreferrer"
+        className="underline decoration-rule underline-offset-4 transition-colors hover:text-ink/70"
+      >
+        {l.text}
+      </a>,
+    )
+    rest = rest.slice(idx + l.text.length)
+  }
+  nodes.push(rest)
+  return nodes
+}
 type MemoSection = {
   id: string
   label: string | null
@@ -40,16 +71,17 @@ type ReaderMeta = {
   authorSlug?: string
   date: string
   subtitle?: string
-  /** Public pieces render without a reading link and can swap the plate image. */
+  /** Public pieces render without sign-in and can swap the plate image. */
   public?: boolean
   cover?: string
 }
 
 type LoadState =
-  | { kind: 'gate'; linkRejected: boolean }
+  | { kind: 'gate'; accessDenied: boolean }
   | { kind: 'loading' }
   | { kind: 'ready'; memo: Memo }
   | { kind: 'unavailable' }
+  | { kind: 'removed' }
 
 const PLATE = '/2-stoa-issue.jpg'
 
@@ -76,6 +108,63 @@ function Footer() {
   )
 }
 
+/** Closing Stoa mark from the exported Magic Patterns design. */
+function BottomMark() {
+  return (
+    <section aria-hidden="true" className="relative min-h-[calc(100svh-32px)] overflow-hidden bg-ink">
+      <img src="/1-stoa-home.jpg" alt="" className="absolute inset-0 h-full w-full object-cover object-[60%_45%]" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 translate-y-[14%] select-none text-center font-serif text-[34vw] font-light uppercase leading-[0.78] tracking-[-0.02em] text-white/75">Stoa</div>
+    </section>
+  )
+}
+
+type RelatedPiece = { slug: string; title: string; market?: string; date?: string; mode: string }
+
+/** The current research index supplies links only. Article access stays server-side. */
+function IssueBottom({ meta }: { meta: ReaderMeta }) {
+  const { data: session } = authClient.useSession()
+  const [readerApproved, setReaderApproved] = useState(false)
+  const [pieces, setPieces] = useState<RelatedPiece[]>([])
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/article?index=1').then(r => r.ok ? r.json() : null)
+      .then(d => { if (!cancelled && Array.isArray(d?.pieces)) setPieces(d.pieces.filter((p: RelatedPiece) => p.slug !== meta.slug)) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [meta.slug])
+  useEffect(() => {
+    let cancelled = false
+    setReaderApproved(false)
+    legacyHeaders().then(headers => fetch('/api/article?access=1&identity=1', { headers }))
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (!cancelled) setReaderApproved(d?.readerApproved === true) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [session?.user?.email])
+  return (
+    <section className="bg-ink text-paper">
+      <div className={readerApproved ? 'mx-auto max-w-6xl px-6 py-16 lg:px-10 lg:py-20' : 'mx-auto grid max-w-6xl gap-12 px-6 py-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] lg:gap-20 lg:px-10 lg:py-20'}>
+        <div>
+          {!readerApproved && <>
+            <h2 className="text-3xl font-light leading-tight tracking-tight sm:text-4xl">Stoa circulates privately.</h2>
+            <p className="mt-4 max-w-md font-sans text-sm leading-relaxed text-paper/70">Each piece is shared with the founders, operators and LPs who help us write it. We read every request and reply personally.</p>
+          </>}
+          <h2 className={readerApproved ? 'text-3xl font-light leading-tight tracking-tight sm:text-4xl' : 'mt-12 font-sans text-sm text-paper/55'}>Also in Stoa</h2>
+          <ul className={readerApproved ? 'mt-6 grid border-t border-paper/15 md:grid-cols-2 md:gap-x-12' : 'mt-3 border-t border-paper/15'}>
+            {pieces.map(piece => <li key={piece.slug} className="border-b border-paper/15 py-4">
+              <a href={`/research/${piece.slug}`} className="group block">
+                <span className="flex items-start justify-between gap-4 text-lg leading-snug"><span className="decoration-paper/40 underline-offset-4 group-hover:underline">{piece.title}</span>{!readerApproved && piece.mode !== 'open' && <Lock aria-label="Readers only" className="mt-1 h-3.5 w-3.5 shrink-0 text-paper/50" />}</span>
+                <span className="mt-2 flex flex-wrap gap-x-5 font-sans text-xs text-paper/55">{piece.market && <span>{piece.market}</span>}{piece.date && <span>{piece.date}</span>}</span>
+              </a>
+            </li>)}
+          </ul>
+        </div>
+        {!readerApproved && <div className="self-start">{session?.user?.email ? <RequestAccessCard pieceSlug={meta.slug} pieceTitle={meta.title} /> : <SignInCard heading="Sign in to Stoa" onSignedIn={() => window.location.reload()} />}</div>}
+      </div>
+    </section>
+  )
+}
+
 function Plate({ src }: { src?: string }) {
   return (
     <figure className="relative">
@@ -90,7 +179,7 @@ function Plate({ src }: { src?: string }) {
 
 function TitleBlock({ meta }: { meta: ReaderMeta }) {
   return (
-    <section className="mx-auto max-w-6xl px-6 pb-12 pt-12 lg:px-10 lg:pt-16">
+    <section className="mx-auto max-w-[680px] px-6 pb-12 pt-12 lg:pt-16">
       <p className="flex flex-wrap gap-x-5 gap-y-1 font-sans text-sm text-muted">
         <span>{meta.entity}</span>
         <span>{meta.date}</span>
@@ -116,99 +205,26 @@ function TitleBlock({ meta }: { meta: ReaderMeta }) {
   )
 }
 
-/** Request-approved gate: no article text ships in the bundle; the server
- *  only releases content to a valid approval token. */
-function Gate({ meta, onBack, linkRejected }: { meta: ReaderMeta; onBack?: () => void; linkRejected: boolean }) {
-  const [email, setEmail] = useState('')
-  const [role, setRole] = useState<Role | null>(null)
-  const [sending, setSending] = useState(false)
-  const [done, setDone] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (sending || done) return
-    setSending(true)
-    setError(null)
-    try {
-      {
-        const res = await fetch('/api/request', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, role, piece: meta.title }),
-        })
-        if (!res.ok) throw new Error(`Request failed: ${res.status}`)
-      }
-      setDone(true)
-    } catch {
-      setError('Something went wrong - please try again in a moment.')
-    } finally {
-      setSending(false)
-    }
-  }
-
+/** Account gate: no article text ships in the bundle; the server only
+ *  releases content to a session whose email is an active reader. Sign-in
+ *  proves an email (link, code, Google or passkey); approval is
+ *  account-wide on the server - one approval opens the whole library. */
+export function Gate({ meta, onBack, accessDenied }: { meta: ReaderMeta; onBack?: () => void; accessDenied: boolean }) {
+  // Signed out on a gated piece: minimal sign-in ("Sign in to read").
+  // Signed in without the piece: identity + request access, kept separate
+  // from sign-in. No role chips, no application framing anywhere here.
   return (
     <div className="min-h-full bg-paper font-serif text-ink">
       <Strip onBack={onBack} />
       <Plate />
       <TitleBlock meta={meta} />
-
       <section className="bg-ink text-paper">
-        <div className="mx-auto grid max-w-6xl gap-12 px-6 py-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] lg:gap-20 lg:px-10 lg:py-20">
-          <div>
-            <h2 className="text-3xl font-light leading-tight tracking-tight sm:text-4xl">Stoa circulates privately.</h2>
-            <p className="mt-4 max-w-md font-sans text-sm leading-relaxed text-paper/70">
-              Each piece is shared with the founders, operators and LPs who help us write it. We read
-              every request and reply personally.
-            </p>
-            <p className="mt-6 max-w-md font-sans text-sm leading-relaxed text-paper/70">
-              <Lock className="mr-2 inline h-3.5 w-3.5 -translate-y-px text-paper/50" />
-              This piece opens with a personal reading link.
-            </p>
-          </div>
-
-          <div className="self-start bg-paper p-6 text-ink">
-            {done ? (
-              <div>
-                <h3 className="text-2xl">Thank you.</h3>
-                <p className="mt-1 font-sans text-sm leading-relaxed text-muted">
-                  We'll be in touch.
-                </p>
-              </div>
-            ) : (
-              <form onSubmit={submit}>
-                <h3 className="text-2xl">Request access</h3>
-                <p className="mt-1 font-sans text-sm leading-relaxed text-muted">
-                  For this piece and the archive.
-                </p>
-                {linkRejected && (
-                  <p className="mt-3 font-sans text-sm leading-relaxed text-accent">
-                    This reading link is not active. Request access below.
-                  </p>
-                )}
-                <div className="font-sans">
-                  <RoleChoice value={role} onChange={setRole} />
-                </div>
-                <label htmlFor="reader-email" className="sr-only">Work email</label>
-                <input
-                  id="reader-email"
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@company.com"
-                  className="mt-4 w-full border border-rule bg-white/60 px-3 py-2.5 font-sans text-sm outline-none transition-[border-color,background-color] duration-150 ease-soft placeholder:text-muted/70 hover:border-muted/60 focus:border-ink focus:bg-white/80"
-                />
-                <button
-                  type="submit"
-                  className="mt-3 w-full bg-ink px-4 py-2.5 font-sans text-sm font-medium text-paper transition-[background-color,transform] duration-150 ease-soft hover:bg-ink/85 active:scale-[0.98] active:duration-100 disabled:opacity-60"
-                >
-                  {sending ? 'Sending…' : 'Send request'}
-                </button>
-                {error && <p className="mt-3 font-sans text-sm leading-relaxed text-accent">{error}</p>}
-              </form>
-            )}
-          </div>
+        <div className="mx-auto max-w-xl px-6 py-16 lg:px-10 lg:py-24">
+          {accessDenied ? (
+            <RequestAccessCard pieceSlug={meta.slug} pieceTitle={meta.title} />
+          ) : (
+            <SignInCard heading="Sign in to read this piece." onSignedIn={() => window.location.reload()} />
+          )}
         </div>
       </section>
       <Footer />
@@ -216,27 +232,25 @@ function Gate({ meta, onBack, linkRejected }: { meta: ReaderMeta; onBack?: () =>
   )
 }
 
+
 export default function ArticleReader({ meta, onBack }: { meta: ReaderMeta; onBack?: () => void }) {
-  const [state, setState] = useState<LoadState>(() => {
-    if (typeof window === 'undefined') return { kind: 'gate', linkRejected: false }
-    if (meta.public) return { kind: 'loading' }
-    const t = currentToken()
-    return t ? { kind: 'loading' } : { kind: 'gate', linkRejected: false }
-  })
+  const [state, setState] = useState<LoadState>({ kind: 'loading' })
 
   useEffect(() => {
-    const t = meta.public ? null : currentToken()
-    if (!t && !meta.public) return
     let cancelled = false
-    const q = t ? `&t=${encodeURIComponent(t)}` : ''
-    fetch(`/api/article?piece=${encodeURIComponent(meta.slug)}${q}`)
+    legacyHeaders().then(headers => fetch(`/api/article?piece=${encodeURIComponent(meta.slug)}`, { headers }))
       .then(async (res) => {
         if (cancelled) return
         if (res.ok) {
           const data = await res.json()
           setState({ kind: 'ready', memo: data.article as Memo })
-        } else if ((res.status === 403 || res.status === 400) && !meta.public) {
-          setState({ kind: 'gate', linkRejected: true })
+        } else if (res.status === 404 || res.status === 410) {
+          setState({ kind: 'removed' })
+        } else if (res.status === 401) {
+          setState({ kind: 'gate', accessDenied: false })
+        } else if (res.status === 403) {
+          // Signed in, but this account has no entitlement to this piece.
+          setState({ kind: 'gate', accessDenied: true })
         } else {
           setState({ kind: 'unavailable' })
         }
@@ -245,18 +259,22 @@ export default function ArticleReader({ meta, onBack }: { meta: ReaderMeta; onBa
     return () => {
       cancelled = true
     }
-  }, [meta.slug, meta.public])
+  }, [meta.slug])
 
   if (state.kind === 'loading') {
     return (
       <div className="min-h-full bg-paper font-serif text-ink">
         <Strip onBack={onBack} />
         <div className="mx-auto max-w-6xl px-6 py-24 lg:px-10">
-          <p className="font-sans text-sm text-muted">Opening your reading link…</p>
+          <p className="font-sans text-sm text-muted">Opening…</p>
         </div>
         <Footer />
       </div>
     )
+  }
+
+  if (state.kind === 'removed') {
+    return <div className="min-h-full bg-paper font-serif text-ink"><Strip onBack={onBack} /><div className="mx-auto max-w-6xl px-6 py-24 lg:px-10"><h1 className="text-3xl font-light">This piece is no longer available.</h1><a href="/research" className="mt-6 inline-block font-sans text-sm underline">Back to research</a></div><Footer /></div>
   }
 
   if (state.kind === 'unavailable') {
@@ -266,7 +284,7 @@ export default function ArticleReader({ meta, onBack }: { meta: ReaderMeta; onBa
         <div className="mx-auto max-w-6xl px-6 py-24 lg:px-10">
           <h1 className="text-3xl font-light tracking-tight">The reader is temporarily unavailable.</h1>
           <p className="mt-4 max-w-md font-sans text-sm leading-relaxed text-muted">
-            Please try your reading link again in a moment.
+            Please try again in a moment.
           </p>
         </div>
         <Footer />
@@ -275,7 +293,7 @@ export default function ArticleReader({ meta, onBack }: { meta: ReaderMeta; onBa
   }
 
   if (state.kind === 'gate') {
-    return <Gate meta={meta} onBack={onBack} linkRejected={state.linkRejected} />
+    return <Gate meta={meta} onBack={onBack} accessDenied={state.accessDenied} />
   }
 
   const memo = state.memo
@@ -286,7 +304,7 @@ export default function ArticleReader({ meta, onBack }: { meta: ReaderMeta; onBa
       <TitleBlock meta={{ ...meta, subtitle: memo.subtitle ?? meta.subtitle }} />
 
       <div className="mx-auto max-w-6xl px-6 pb-24 lg:px-10">
-        <article className="min-w-0 lg:max-w-[680px]">
+        <article className="mx-auto min-w-0 max-w-[680px]">
           {memo.sections.map((s) => (
             <section key={s.id} id={s.id} className="mt-14 first:mt-0">
               {s.label && <h2 className="text-3xl font-light tracking-tight">{s.label}</h2>}
@@ -294,8 +312,13 @@ export default function ArticleReader({ meta, onBack }: { meta: ReaderMeta; onBa
                 ? s.blocks.map((b, i) => {
                     if (b.type === 'img')
                       return (
-                        <figure key={i} className="mt-8">
-                          <img src={b.src} alt={b.alt || 'Chart from the article.'} className="w-full" loading="lazy" />
+                        <figure key={i} className="mt-8 overflow-x-auto">
+                          <img src={b.src} alt={b.alt || 'Chart from the article.'} className="w-full" style={b.minWidth ? { minWidth: b.minWidth } : undefined} loading="lazy" />
+                          {b.caption && (
+                            <figcaption className="mt-2 font-sans text-xs leading-relaxed text-muted">
+                              {renderLinked(b.caption, b.links)}
+                            </figcaption>
+                          )}
                         </figure>
                       )
                     if (b.type === 'h3')
@@ -304,15 +327,40 @@ export default function ArticleReader({ meta, onBack }: { meta: ReaderMeta; onBa
                           {b.text}
                         </h3>
                       )
+                    if (b.type === 'table')
+                      return (
+                        <div key={i} className="mt-8 overflow-x-auto">
+                          <table className="w-full min-w-[560px] border-collapse font-sans text-sm">
+                            <thead>
+                              <tr>
+                                {b.head.map((h, j) => (
+                                  <th key={j} className="border-b border-ink/20 pb-2 pr-4 text-left font-medium text-ink last:pr-0">
+                                    {h}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {b.rows.map((r, j) => (
+                                <tr key={j} className="border-b border-rule last:border-0">
+                                  {r.map((c, k) => (
+                                    <td key={k} className="py-2 pr-4 align-top text-ink/85 last:pr-0">{c}</td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )
                     if (b.type === 'li')
                       return (
                         <p key={i} className="mt-5 text-xl leading-[1.65] text-ink/90">
-                          {b.text}
+                          {renderLinked(b.text, b.links)}
                         </p>
                       )
                     return (
                       <p key={i} className="mt-5 text-xl leading-[1.65] text-ink/90">
-                        {b.text}
+                        {renderLinked(b.text, b.links)}
                       </p>
                     )
                   })
@@ -335,6 +383,8 @@ export default function ArticleReader({ meta, onBack }: { meta: ReaderMeta; onBa
           </p>
         </article>
       </div>
+      <IssueBottom meta={meta} />
+      <BottomMark />
       <Footer />
     </div>
   )

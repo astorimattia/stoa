@@ -29,6 +29,18 @@
   ],
   "rewrites": [
     {
+      "source": "/api/auth/:route*",
+      "destination": "/api/auth-handler?route=:route*"
+    },
+    {
+      "source": "/api/welcome-auth/:route*",
+      "destination": "/api/welcome-handler?route=:route*"
+    },
+    {
+      "source": "/admin/legacy",
+      "destination": "/index.html"
+    },
+    {
       "source": "/research",
       "destination": "/index.html"
     },
@@ -43,6 +55,33 @@
     {
       "source": "/admin",
       "destination": "/index.html"
+    },
+    {
+      "source": "/signin",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/welcome",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/unsubscribe",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/email-preferences",
+      "destination": "/index.html"
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/sign-in",
+      "destination": "/signin",
+      "permanent": true
     }
   ]
 }

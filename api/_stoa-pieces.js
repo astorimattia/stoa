@@ -23,10 +23,6 @@ export const PIECES = {
     envKey: 'ARTICLE_ELECTIONS_VC',
     open: true,
   },
-  'applied-intuition': {
-    title: 'Applied Intuition and the software layer of physical autonomy',
-    envKey: 'ARTICLE_APPLIED_INTUITION',
-  },
   'space-insurance': {
     title: 'Space insurance is a market of twelve underwriters',
     envKey: 'ARTICLE_SPACE_INSURANCE',
@@ -41,7 +37,7 @@ export const PIECES = {
   },
 }
 
-export const PIECE_MODES = ['open', 'readers', 'selected']
+export const PIECE_MODES = ['open', 'readers']
 
 // Static default only; the live mode comes from the stoa_pieces table.
 export const defaultMode = (cfg) => (cfg && cfg.open === true ? 'open' : 'readers')

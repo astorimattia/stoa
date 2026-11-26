@@ -3,68 +3,51 @@
 // client bundle). In demo mode the preview serves built-in demo copy
 // instead, so the real texts are never touched.
 //
-// Three piece modes (see api/_stoa-pieces.js):
-// - open:     released to anyone, no token.
-// - readers:  any active reader opens it, unless their own library scope
-//             (exclusions / picked pieces) says no.
-// - selected: only readers with an explicit grant open it, however wide
-//             their library access is.
+// Piece modes (see api/_stoa-pieces.js):
+// - open:   released to anyone, no session.
+// - any other mode: gated - an active reader opens it. Access is
+//   account-wide: one approval opens the whole locked library, and the
+//   piece recorded on a request is a demand signal, not a scope.
+//   Per-piece grants/exclusions are no longer consulted.
 //
-// Legacy per-piece links (stoa_requests rows minted before readers existed)
-// still work as a fallback for their own 'readers'-mode piece, unless a
-// reader row owns that token or that email - then the reader decision is
-// authoritative, so a revoke or expiry always wins. Tokens are stored as
-// SHA-256 hashes only and are never logged. Nothing here approves anyone.
+// A Better Auth session proves the email; the readers table decides
+// whether that email may read. A session alone never grants access, and
+// revoking the reader row blocks reading even while the session stays
+// valid. Nothing here approves anyone.
 //
 // GET /api/article?piece=<slug>[&t=<token>]  -> { article }
 // GET /api/article?access=1&t=<token>        -> { pieces: [slug...] } the
 //     slugs this token opens (used by the research list); 403 if the token
 //     is not an active reader or legacy link.
 
-import { createHash } from 'node:crypto'
+import { legacyAccess, legacyReaderAllows, legacyReaderByToken } from './_legacy-access.js'
+import { gunzipSync } from 'node:zlib'
 import { getSql, ensureSchema, T, pieceModes, readerCanRead } from './_stoa-db.js'
 import { PIECES, defaultMode } from './_stoa-pieces.js'
+import { ensureContentSchema, CODE_PIECE_META } from './_stoa-content.js'
+import { getAuth } from './_auth.js'
 
 const active = (r) =>
   r && r.status === 'approved' && !r.revoked_at && (!r.expires_at || new Date(r.expires_at) > new Date())
 
-async function readerFor(sql, tokenHash) {
+async function readerByEmail(sql, email, table) {
   const rows = await sql`
-    select email, status, access_mode, expires_at, revoked_at from ${T(sql, 'stoa_readers')}
-    where token_hash = ${tokenHash} limit 1
+    select email, status, access_mode, expires_at, revoked_at from ${T(sql, table)}
+    where lower(email) = lower(${email}) limit 1
   `
   return rows[0] || null
 }
 
-async function grantsFor(sql, email) {
-  const rows = await sql`select piece from ${T(sql, 'stoa_grants')} where email = ${email}`
-  return new Set(rows.map((r) => r.piece))
-}
-
-async function exclusionsFor(sql, email) {
-  const rows = await sql`select piece from ${T(sql, 'stoa_exclusions')} where email = ${email}`
-  return new Set(rows.map((r) => r.piece))
-}
-
-// Legacy per-piece link: honoured only when no reader row governs it.
-async function legacyOk(sql, tokenHash, cfg) {
-  const rows = await sql`
-    select lower(r.email) as email, r.status, r.expires_at, r.revoked_at
-    from ${T(sql, 'stoa_requests')} r
-    where r.token_hash = ${tokenHash} and r.piece = ${cfg.title}
-    limit 1
-  `
-  const r = rows[0]
-  if (!active(r)) return false
-  const owned = await sql`select 1 from ${T(sql, 'stoa_readers')} where email = ${r.email} limit 1`
-  return owned.length === 0
-}
-
 function send(res, cfg, slug) {
-  const raw = process.env[cfg.envKey]
+  let raw = process.env[cfg.envKey]
   if (!raw) {
     console.error(`[stoa] ${cfg.envKey} not configured`)
     return res.status(503).json({ error: 'The reader is not configured yet' })
+  }
+  // Values prefixed `gz:` are gzip+base64, to stay under the project's total
+  // env-var size limit for larger pieces; decompressed before parsing.
+  if (raw.startsWith('gz:')) {
+    raw = gunzipSync(Buffer.from(raw.slice(3), 'base64')).toString('utf8')
   }
   res.setHeader('Cache-Control', 'no-store')
   return res.status(200).json({ article: JSON.parse(raw) })
@@ -76,12 +59,14 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const token = (req.query.t || '').toString().slice(0, 200)
   const wantsAccess = req.query.access === '1'
+  const wantsIndex = req.query.index === '1'
   const piece = (req.query.piece || '').toString().slice(0, 100)
-  const cfg = PIECES[piece]
+  let cfg = PIECES[piece] || null
 
-  if (!wantsAccess && !cfg) return res.status(400).json({ error: 'Missing piece or token' })
+  if (!wantsAccess && !wantsIndex && !cfg && !/^[a-z0-9-]{1,100}$/.test(piece)) {
+    return res.status(400).json({ error: 'Missing piece' })
+  }
 
   const sql = getSql()
   if (!sql) {
@@ -91,49 +76,99 @@ export default async function handler(req, res) {
 
   try {
     await ensureSchema(sql)
-    const modes = await pieceModes(sql)
+    const reviewMode = process.env.STOA_ACCOUNT_REVIEW === '1'
+    const prefix = reviewMode ? 'stoa_test_' : 'stoa_'
+    await ensureContentSchema(sql, prefix)
+    const removed = new Set((await sql`select slug from ${T(sql, prefix + 'removed_pieces')}`).map(r => r.slug))
+    if (!wantsAccess && !wantsIndex && removed.has(piece)) return res.status(404).json({ error: 'This piece is no longer available.' })
+    const modes = await pieceModes(sql, prefix)
     const modeOf = (slug) => modes[slug] || defaultMode(PIECES[slug])
+    // Dynamic pieces written through the admin editor or the manual import.
+    const dbRows = (await sql`select slug, number, title, dek, market, author, entity, date_label, read_time, source from ${T(sql, prefix + 'piece_content')}`).filter(r => !removed.has(r.slug))
+    const dbBySlug = Object.fromEntries(dbRows.map((r) => [r.slug, r]))
+
+    // Public research index: metadata and modes only, never content.
+    if (wantsIndex) {
+      const code = Object.entries(PIECES).filter(([slug]) => !removed.has(slug)).map(([slug, c]) => ({
+        slug, title: c.title, ...(CODE_PIECE_META[slug] || {}), mode: modeOf(slug), source: 'code',
+      }))
+      const db = dbRows.map((r) => ({
+        slug: r.slug, title: r.title, dek: r.dek, market: r.market, author: r.author,
+        date: r.date_label, readTime: r.read_time, number: r.number, mode: modeOf(r.slug), source: r.source,
+      }))
+      const all = [...code, ...db].sort((a, b) => (b.number || 0) - (a.number || 0))
+      return res.status(200).json({ pieces: all })
+    }
+
+    // A slug outside the static registry must exist as DB content.
+    let dbContent = null
+    if (!cfg && !wantsAccess) {
+      dbContent = (await sql`select memo from ${T(sql, prefix + 'piece_content')} where slug = ${piece}`)[0] || null
+      if (!dbContent) return res.status(400).json({ error: 'Missing piece' })
+    }
+    const sendPiece = () => {
+      if (dbContent) {
+        res.setHeader('Cache-Control', 'no-store')
+        return res.status(200).json({ article: dbContent.memo })
+      }
+      return send(res, cfg, piece)
+    }
+    // Every known slug: static registry plus DB content.
+    const allPieces = [
+      ...Object.entries(PIECES).filter(([slug]) => !removed.has(slug)).map(([slug, c]) => ({ slug, title: c.title })),
+      ...dbRows.map((r) => ({ slug: r.slug, title: r.title })),
+    ]
 
     // Open pieces are already published openly (e.g. on Stoa's Substack).
-    if (!wantsAccess && modeOf(piece) === 'open') return send(res, cfg, piece)
-    if (!token) return res.status(400).json({ error: 'Missing piece or token' })
+    if (!wantsAccess && modeOf(piece) === 'open') return sendPiece()
 
-    const tokenHash = createHash('sha256').update(token).digest('hex')
-    const reader = await readerFor(sql, tokenHash)
-    const member = active(reader)
-    const grants = reader ? await grantsFor(sql, reader.email) : new Set()
-    const exclusions = reader ? await exclusionsFor(sql, reader.email) : new Set()
+    // Preview deployments only: slugs in STOA_PREVIEW_OPEN (comma-separated)
+    // are served without a token so not-yet-approved pieces can be reviewed
+    // on a protected preview. Never set for production, where this is inert.
+    const previewOpen = (process.env.STOA_PREVIEW_OPEN || '').split(',').map((s) => s.trim())
+    if (!wantsAccess && process.env.VERCEL_ENV === 'preview' && previewOpen.includes(piece)) return sendPiece()
 
-    if (wantsAccess) {
-      const open = []
-      if (member) {
-        for (const [slug] of Object.entries(PIECES)) {
-          const mode = modeOf(slug)
-          if (mode !== 'open' && readerCanRead(reader, slug, mode, grants, exclusions)) open.push(slug)
-        }
-      } else if (!reader) {
-        for (const [slug, c] of Object.entries(PIECES)) {
-          if (modeOf(slug) === 'readers' && (await legacyOk(sql, tokenHash, c))) open.push(slug)
-        }
+    const review = process.env.STOA_ACCOUNT_REVIEW === '1'
+    const bridge = !review && process.env.STOA_PRODUCTION_READER_BRIDGE === '1'
+    if (!review && !bridge) return res.status(503).json({ error: 'Reader access is not enabled' })
+    const token = (req.headers['x-stoa-legacy-token'] || req.query.t || '').toString().slice(0, 201)
+    if (bridge && token && req.query.identity !== '1') {
+      // Resolve the link's approved reader once, for opens recording below.
+      const linkReader = await legacyReaderByToken(sql, { token, test: review }).catch(() => null)
+      const opens = []
+      for (const p of allPieces) {
+        if (modeOf(p.slug) !== 'open' && await legacyAccess(sql, { token, slug: p.slug, title: p.title, mode: modeOf(p.slug) })) opens.push(p.slug)
       }
-      if (!member && !open.length) return res.status(403).json({ error: 'This reading link is not active' })
-      return res.status(200).json({ pieces: open })
+      if (wantsAccess) return res.status(200).json({ pieces: opens })
+      if (opens.includes(piece)) {
+        // Opens: the same record as a signed-in open, for an approved reader
+        // using their reading link. The reader is identified by the link
+        // itself; unknown, expired or revoked links record nothing, and no
+        // IP, device or other visitor data is stored.
+        if (linkReader) await sql`insert into ${T(sql, prefix + 'reading_events')} (email, piece) values (${linkReader.email}, ${piece})`.catch(() => {})
+        return sendPiece()
+      }
+      // An invalid or expired legacy token does not invalidate a verified
+      // session. No identity or reader rows are created from a bearer link.
     }
-
-    // A reader row is authoritative: an active reader opens what their
-    // scope and the piece's mode allow; a revoked or expired reader is
-    // refused with no legacy fallback.
-    const mode = modeOf(piece)
-    let allowed = false
-    if (member) {
-      allowed = readerCanRead(reader, piece, mode, grants, exclusions)
-    } else if (!reader && mode === 'readers') {
-      allowed = await legacyOk(sql, tokenHash, cfg)
+    const session = await getAuth().api.getSession({ headers: new Headers(req.headers) }).catch(() => null)
+    if (!session?.user?.email || session.user.emailVerified !== true) return res.status(401).json({ error: 'sign_in_required' })
+    const reader = await readerByEmail(sql, session.user.email, review ? 'stoa_test_readers' : 'stoa_readers')
+    const member = active(reader)
+    let grants = new Set(), exclusions = new Set()
+    if (bridge && member) {
+      grants = new Set((await sql`select piece from stoa_grants where email=${reader.email}`).map(r => r.piece))
+      exclusions = new Set((await sql`select piece from stoa_exclusions where email=${reader.email}`).map(r => r.piece))
     }
-    if (!allowed) {
-      return res.status(403).json({ error: 'This reading link is not active' })
-    }
-    return send(res, cfg, piece)
+    const allowed = slug => member && (bridge ? legacyReaderAllows(reader, slug, modeOf(slug), grants, exclusions) : readerCanRead(reader, slug, modeOf(slug)))
+    if (wantsAccess) return res.status(200).json({ readerApproved: !!member, pieces: allPieces.map(p => p.slug).filter(slug => modeOf(slug) !== 'open' && allowed(slug)) })
+    if (!allowed(piece)) return res.status(403).json({ error: 'no_access' })
+    // Opens: record that this approved reader opened this locked piece and
+    // when, whether signed in or using their reading link (recorded above).
+    // This measures opens, never reading time or attention. The insert must
+    // never break reading, so failures are swallowed.
+    await sql`insert into ${T(sql, prefix + 'reading_events')} (email, piece) values (${reader.email}, ${piece})`.catch(() => {})
+    return sendPiece()
   } catch (err) {
     console.error('[stoa] article lookup failed:', err)
     return res.status(502).json({ error: 'The reader is temporarily unavailable' })

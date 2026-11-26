@@ -2,7 +2,13 @@
 import React, { type ComponentType, useEffect, useState } from 'react'
 import ReactDOM from 'react-dom/client'
 import ArticleReader from '../shared/stoa/ArticleReader'
+import { SignInCard } from '../shared/stoa/SignIn'
+import Welcome from '../shared/stoa/Welcome'
+import EmailPreferences from '../shared/stoa/EmailPreferences'
+import Unsubscribe from '../shared/stoa/Unsubscribe'
+import Privacy from '../shared/stoa/Privacy'
 import AdminDashboard from '../shared/stoa/AdminDashboard'
+import LegacyAdminDashboard from '../shared/stoa/LegacyAdminDashboard'
 import AuthorProfile, { AUTHORS } from '../shared/stoa/AuthorProfile'
 import { captureReaderToken } from '../shared/stoa/readerToken'
 
@@ -70,29 +76,23 @@ const READER_ROUTES: Record<string, {
     public: true,
     cover: '/articles/elections-vc/cover.png',
   },
-  '/research/applied-intuition': {
-    slug: 'applied-intuition',
-    title: 'Applied Intuition and the software layer of physical autonomy',
-    entity: 'STOA',
-    author: 'MATTIA ASTORI',
-    date: 'NOV 2026',
-    subtitle: 'Why the company that sold simulation to carmakers is now positioned to sell autonomy to anything that moves.',
-  },
   '/research/space-insurance': {
     slug: 'space-insurance',
-    title: 'Space insurance is a market of twelve underwriters',
+    title: 'Space Insurance; Is Now The Time?',
     entity: 'STOA',
-    author: 'MATTIA ASTORI',
-    date: 'NOV 2026',
-    subtitle: 'Launch cadence has gone vertical while underwriting capacity has not.',
+    author: 'HAYDEN BLEECKER',
+    date: '27 OCT 2026',
+    subtitle: 'An analysis of the space insurance market and the potential future value.',
+    public: true,
   },
   '/research/consensus': {
     slug: 'consensus',
-    title: 'Consensus and the search for answers you can cite',
+    title: 'Beyond Consensus',
     entity: 'STOA',
     author: 'MATTIA ASTORI',
-    date: 'OCT 2026',
-    subtitle: 'Academic search is becoming an AI product category.',
+    date: '7 SEP 2026',
+    subtitle: 'The market has priced its winners. I want to map the world once those bets play out, and invest in what becomes scarce then.',
+    public: true,
   },
   '/research/erebor': {
     slug: 'erebor',
@@ -114,6 +114,13 @@ export function Root() {
   useState(() => (path !== '/admin' ? captureReaderToken() : null))
   // Direct-reader route: /research/<slug> renders the article view.
   const [readerOpen, setReaderOpen] = useState(() => path in READER_ROUTES)
+  if (path === '/research/applied-intuition') return <main className="min-h-screen bg-paper p-6 font-serif text-ink"><div className="mx-auto max-w-md pt-16"><h1 className="text-3xl">Piece unavailable</h1><a href="/research" className="mt-6 inline-block underline">Back to research</a></div></main>
+  if (path === '/privacy') return <Privacy />
+  if (path === '/email-preferences') return <EmailPreferences />
+  if (path === '/unsubscribe') return <Unsubscribe />
+  if (path === '/welcome') return <Welcome />
+  if (path === '/signin' || path === '/research/sign-in') return <main className="min-h-screen bg-paper p-6 font-serif"><div className="mx-auto max-w-md pt-16"><a href="/research" className="text-sm underline">Back to research</a><SignInCard onSignedIn={() => { window.location.href='/research' }} /></div></main>
+  if (path === '/admin/legacy') return <LegacyAdminDashboard />
   if (path === '/admin') {
     return <AdminDashboard />
   }
@@ -132,6 +139,9 @@ export function Root() {
       />
     )
   }
+  // Admin-published pieces (DB) get their reader route from the live index.
+  const dynSlug = path.startsWith('/research/') ? path.slice('/research/'.length) : ''
+  if (dynSlug && !dynSlug.includes('/')) return <DynamicPiece slug={dynSlug} />
   // /research (the link a reader gets when approved without a piece) opens
   // the home with the research list showing.
   if (path === '/research' && Frame) return <Frame {...live} state="research" />
@@ -204,9 +214,51 @@ function Blank() {
   return <div data-mp-placeholder className="min-h-full w-full bg-slate-50" />
 }
 
+/**
+ * Reader route for a piece that is not in the bundled READER_ROUTES: look it
+ * up in the live index (admin-published and imported pieces live there) and
+ * render it with the same reader. Content itself still comes from
+ * /api/article, which enforces the piece's current access mode.
+ */
+function DynamicPiece({ slug }: { slug: string }) {
+  const [state, setState] = useState<'loading' | { meta?: any }>('loading')
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/article?index=1')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled) return
+        const p = d?.pieces?.find((x: any) => x.slug === slug)
+        setState({
+          meta: p && {
+            slug: p.slug,
+            title: p.title,
+            entity: 'STOA',
+            author: p.author || 'MATTIA ASTORI',
+            date: String(p.date || '').toUpperCase(),
+            subtitle: p.dek || undefined,
+            public: p.mode === 'open',
+          },
+        })
+      })
+      .catch(() => !cancelled && setState({ meta: undefined }))
+    return () => {
+      cancelled = true
+    }
+  }, [slug])
+  if (state === 'loading') return <main className="min-h-screen bg-paper" />
+  if (!state.meta) return <main className="min-h-screen bg-paper p-6 font-serif text-ink"><div className="mx-auto max-w-md pt-16"><h1 className="text-3xl">Piece unavailable</h1><a href="/research" className="mt-6 inline-block underline">Back to research</a></div></main>
+  return <ArticleReader meta={state.meta} onBack={() => { window.location.href = '/research' }} />
+}
+
+class StoaErrorBoundary extends React.Component<{children:React.ReactNode},{failed:boolean}> {
+  state={failed:false}
+  static getDerivedStateFromError(){return {failed:true}}
+  render(){if(this.state.failed)return <main className="flex min-h-screen items-center justify-center bg-paper p-8 font-sans text-ink"><div className="max-w-md"><h1 className="font-serif text-3xl">Stoa could not open.</h1><p className="mt-4 text-sm">Reload the page to try again. Check the current state before repeating any action.</p><button className="mt-6 bg-ink px-5 py-3 text-paper" onClick={()=>location.reload()}>Reload Stoa</button><p className="mt-5 text-sm"><a href="/research" className="underline">Back to research</a></p></div></main>;return this.props.children}
+}
 const rootEl = document.getElementById('root')
 if (rootEl && !hot?.data.root) {
   const root = ReactDOM.createRoot(rootEl)
-  root.render(<Root />)
+  root.render(<StoaErrorBoundary><Root /></StoaErrorBoundary>)
   if (hot) hot.data.root = root
 }

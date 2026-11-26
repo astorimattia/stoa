@@ -12,7 +12,7 @@ const pieceSeedRows = () =>
 let schemaReady = null
 
 export function getSql() {
-  const url = process.env.DATABASE_URL
+  const url = databaseURL()
   if (!url) return null
   return neon(url)
 }
@@ -40,6 +40,10 @@ export function ensureSchema(sql) {
       // exposes a usable link. Raw tokens leave the server exactly once,
       // in the approval response to Mattia.
       await sql`alter table ${T(sql, 'stoa_requests')} add column if not exists token_hash text unique`
+      await sql`alter table stoa_requests add column if not exists note text`
+      await sql`alter table stoa_requests add column if not exists source text`
+      await sql`alter table stoa_requests add column if not exists team_note text`
+      await sql`create table if not exists stoa_reading_events(id bigint generated always as identity primary key,email text not null,piece text not null,opened_at timestamptz not null default now())`
       // Admin endpoint abuse control + audit. No secrets or tokens in either.
       await sql`create table if not exists ${T(sql, 'stoa_admin_throttle')} (
         ip text primary key,
@@ -107,6 +111,7 @@ export function ensureSchema(sql) {
         ran_at timestamptz not null default now()
       )`
       await migrateReaders(sql)
+      await migrateReaderSubscriptions(sql)
     })().catch((err) => {
       schemaReady = null
       throw err
@@ -139,10 +144,29 @@ async function migrateReaders(sql) {
   await sql`insert into ${T(sql, 'stoa_migrations')} (name) values (${name}) on conflict do nothing`
 }
 
+// Every approved reader is a new-piece email subscriber. This one-time
+// backfill subscribes approved, active readers who have no subscription
+// row yet; a row already on file - including an explicit unsubscribe - is
+// never touched. Guarded by a marker row so later unsubscribe choices are
+// never reset. New approvals subscribe through the approve action itself.
+async function migrateReaderSubscriptions(sql) {
+  const name = 'readers-subscribe-v1'
+  const done = await sql`select 1 from ${T(sql, 'stoa_migrations')} where name = ${name} limit 1`
+  if (done.length) return
+  await sql`create table if not exists ${T(sql, 'stoa_subscriptions')} (email text primary key, subscribed_at timestamptz not null default now(), unsubscribed_at timestamptz)`
+  await sql`
+    insert into ${T(sql, 'stoa_subscriptions')} (email)
+    select email from ${T(sql, 'stoa_readers')}
+    where status = 'approved' and revoked_at is null and (expires_at is null or expires_at > now())
+    on conflict (email) do nothing
+  `
+  await sql`insert into ${T(sql, 'stoa_migrations')} (name) values (${name}) on conflict do nothing`
+}
+
 // The piece access modes, from the table, falling back to the registry
 // defaults for any piece with no row yet. Returns { slug: mode }.
-export async function pieceModes(sql) {
-  const rows = await sql`select slug, mode from ${T(sql, 'stoa_pieces')}`
+export async function pieceModes(sql, prefix = 'stoa_') {
+  const rows = await sql`select slug, mode from ${T(sql, prefix + 'pieces')}`
   const modes = {}
   for (const r of rows) modes[r.slug] = r.mode
   return modes
@@ -157,4 +181,14 @@ export function readerCanRead(reader, slug, mode, grants, exclusions) {
   if (reader.access_mode === 'selected') return grants.has(slug)
   if (reader.access_mode === 'except') return !exclusions.has(slug)
   return true
+}
+
+// Auth preparation shares the selected database, never a separate fallback.
+export const databaseURL = () => {
+  if(process.env.STOA_ISOLATED_MAIL_TEST==='1'){
+    const url=process.env.STOA_ISOLATED_DATABASE_URL
+    if(!url||!process.env.STOA_ISOLATED_DATABASE_HOST||new URL(url).hostname!==process.env.STOA_ISOLATED_DATABASE_HOST)throw Error('Explicit isolated database identity required')
+    return url
+  }
+  return process.env.DATABASE_URL
 }

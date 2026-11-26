@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { ArrowLeft, ArrowUpRight } from 'lucide-react'
 
 export type AuthorPiece = { path: string; title: string; date: string }
@@ -55,6 +56,8 @@ function Footer() {
 }
 
 export default function AuthorProfile({ author }: { author: Author }) {
+  const [available, setAvailable] = useState<Set<string>>(new Set())
+  useEffect(() => { let cancelled = false; fetch('/api/article?index=1').then(r => r.ok ? r.json() : null).then(d => { if (!cancelled && Array.isArray(d?.pieces)) setAvailable(new Set(d.pieces.map((p: any) => '/research/' + p.slug))) }).catch(() => {}); return () => { cancelled = true } }, [])
   return (
     <div className="flex min-h-full flex-col bg-paper font-serif text-ink">
       <Strip />
@@ -71,7 +74,7 @@ export default function AuthorProfile({ author }: { author: Author }) {
         <div className="mt-12 max-w-3xl border-t border-rule pt-4">
           <h2 className="font-sans text-sm uppercase tracking-wide text-muted">Pieces</h2>
           <ul className="mt-4 divide-y divide-rule">
-            {author.pieces.map((p) => (
+            {author.pieces.filter(p => available.has(p.path)).map((p) => (
               <li key={p.path}>
                 <a href={p.path} className="group flex items-baseline justify-between gap-6 py-4">
                   <span className="text-lg leading-snug text-ink transition-colors group-hover:text-ink/70">

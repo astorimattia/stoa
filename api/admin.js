@@ -85,7 +85,7 @@ const audit = (sql, ip, action, target, ok) =>
   )
 
 const ACTIONS = ['approve', 'access', 'setpiece', 'revoke', 'expire', 'status', 'purge']
-const ACCESS_MODES = ['all', 'except', 'selected']
+const ACCESS_MODES = ['all', 'except']
 const siteBase = () => 'https://www.stoacap.com'
 
 const isActive = (r) =>
@@ -232,6 +232,11 @@ export default async function handler(req, res) {
         where lower(email) = ${email} and status = 'pending'
         returning id
       `
+
+      // Every approved reader is a new-piece email subscriber. An explicit
+      // unsubscribe already on file always wins over re-approval.
+      await sql`create table if not exists ${T(sql, 'stoa_subscriptions')}(email text primary key,subscribed_at timestamptz not null default now(),unsubscribed_at timestamptz)`
+      await sql`insert into ${T(sql, 'stoa_subscriptions')}(email, unsubscribed_at) values (${email}, null) on conflict (email) do nothing`
 
       const fresh = await sql`select expires_at from ${T(sql, 'stoa_readers')} where email = ${email} limit 1`
       await audit(sql, ip, action, target, true)

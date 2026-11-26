@@ -1,3 +1,4 @@
+import {canonicalRequestAllowed} from './_canonical-request.js'
 // Access-request capture: the request is stored in Neon first. Storing the
 // row is what confirms a request - the visitor gets success only after the
 // row exists. The alert email to Mattia is then attempted best-effort: a
@@ -11,10 +12,13 @@
 // the demo tables and never sends the alert email.
 
 import { getSql, ensureSchema, T } from './_stoa-db.js'
+import recover from './recover.js'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export default async function handler(req, res) {
+  if(!canonicalRequestAllowed(req))return res.status(403).json({error:'Use the canonical Stoa website'})
+  if(process.env.STOA_ACCOUNT_LIVE==='1')return recover(req,res)
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }

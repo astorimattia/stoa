@@ -34,9 +34,8 @@ export function captureReaderToken(): string | null {
 /** Slugs this device's reading link opens, or [] when none / no link. */
 export async function fetchAccessibleSlugs(): Promise<string[]> {
   const t = getReaderToken()
-  if (!t) return []
   try {
-    const res = await fetch(`/api/article?access=1&t=${encodeURIComponent(t)}`)
+    const res = await fetch(`/api/article?access=1${t ? `&t=${encodeURIComponent(t)}` : ''}`)
     if (!res.ok) return []
     const body = await res.json()
     return Array.isArray(body.pieces) ? body.pieces : []
