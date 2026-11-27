@@ -5,11 +5,14 @@ type Props = {
   /** The line under the field: what membership gets you, in this context. */
   promise?: string
   onRequestAccess?: (email: string) => void
+  /** Keeps the field's id unique when a page shows the form twice. */
+  idSuffix?: string
 }
 
 /** The one action on Stoa: an email, a button, and a line on what members get. */
-export function Intake({ sent: sentProp = false, promise = 'Membership is free. We review every request by hand, so everyone inside has been vetted.', onRequestAccess }: Props) {
+export function Intake({ sent: sentProp = false, promise = 'Membership is free. We review every request by hand, so everyone inside has been vetted.', onRequestAccess, idSuffix }: Props) {
   const [email, setEmail] = useState('')
+  const fieldId = idSuffix ? `intake-email-${idSuffix}` : 'intake-email'
   const [sent, setSent] = useState(sentProp)
   useEffect(() => setSent(sentProp), [sentProp])
 
@@ -32,18 +35,18 @@ export function Intake({ sent: sentProp = false, promise = 'Membership is free. 
         onRequestAccess?.(email)
       }}
     >
-      <label htmlFor="intake-email" className="sr-only">
+      <label htmlFor={fieldId} className="sr-only">
         Email
       </label>
       <div className="flex flex-col gap-2 sm:flex-row">
         <input
-          id="intake-email"
+          id={fieldId}
           type="email"
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@firm.com"
-          className="min-w-0 flex-1 bg-stone px-4 py-3.5 text-[17px] text-ink outline-none placeholder:text-quiet focus:bg-rule"
+          className="min-w-0 flex-1 border border-rule bg-paper px-4 py-3.5 text-[17px] text-ink outline-none transition-colors duration-150 placeholder:text-quiet focus:border-ink"
         />
         <button
           type="submit"

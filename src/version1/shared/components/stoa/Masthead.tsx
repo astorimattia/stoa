@@ -2,7 +2,7 @@ import React from 'react'
 
 import { StoaLogo } from '../../components/stoa/StoaLogo'
 
-export type StoaPage = 'home' | 'research' | 'positions' | 'experts' | 'members'
+export type StoaPage = 'home' | 'research' | 'investments' | 'members'
 
 type Props = {
   active: StoaPage
@@ -10,7 +10,7 @@ type Props = {
   onNavigate?: (page: StoaPage) => void
 }
 
-/** Wordmark and four words. No rules: the space around it does the separating. */
+/** Wordmark and three words. No rules: the space around it does the separating. */
 export function Masthead({ active, signedIn, onNavigate }: Props) {
   const link = (page: StoaPage, label: string, extra = '') => (
     <button
@@ -23,7 +23,7 @@ export function Masthead({ active, signedIn, onNavigate }: Props) {
   )
 
   return (
-    <header className="flex w-full items-center justify-between gap-4 px-5 py-5 font-sans md:px-10 md:py-7">
+    <header className="mx-auto flex w-full max-w-[1360px] items-center justify-between gap-4 px-5 py-5 font-sans md:px-10 md:py-7">
       <button onClick={() => onNavigate?.('home')} aria-label="Stoa, home" className="shrink-0 text-ink">
         <span className="hidden sm:inline-flex">
           <StoaLogo size={21} />
@@ -32,10 +32,9 @@ export function Masthead({ active, signedIn, onNavigate }: Props) {
           <StoaLogo size={24} variant="mark" />
         </span>
       </button>
-      <nav className="flex min-w-0 items-center gap-3 text-[14px] sm:gap-5 sm:text-[15px] md:gap-8">
+      <nav className="flex min-w-0 items-center gap-4 text-[14px] sm:gap-6 sm:text-[15px] md:gap-8">
         {link('research', 'Research')}
-        {link('positions', 'Positions')}
-        {link('experts', 'Experts')}
+        {link('investments', 'Investments')}
         {signedIn ? (
           link('members', 'Members')
         ) : (

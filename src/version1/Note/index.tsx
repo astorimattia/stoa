@@ -3,7 +3,7 @@ import React from 'react'
 import { Masthead, StoaPage } from '../shared/components/stoa/Masthead'
 import { Intake } from '../shared/components/stoa/Intake'
 import { Colophon } from '../shared/components/stoa/Colophon'
-import { noteBySlug, stoaNotes, stoaPositions, stoaSources } from '../shared/stoaData'
+import { SHOW_VOICES, noteBySlug, stoaNotes, stoaPositions, stoaSources } from '../shared/stoaData'
 import { noteAuthors, noteBodies } from '../shared/stoaNoteBodies'
 
 type Props = Partial<typeof args> & {
@@ -16,7 +16,7 @@ type Props = Partial<typeof args> & {
 export default function Note(props: Props) {
   const { slug, reader, signedIn, intake, onNavigate, onRequestAccess } = { ...args, ...props }
   const note = noteBySlug(slug) ?? stoaNotes[0]
-  const sources = stoaSources[note.slug]
+  const sources = SHOW_VOICES ? stoaSources[note.slug] : undefined
   const body = noteBodies[note.slug]
   const author = noteAuthors[note.slug]
   const entered = stoaPositions.find((p) => p.note === note.slug)?.entered
@@ -31,10 +31,13 @@ export default function Note(props: Props) {
     <div className="min-h-full bg-paper font-sans text-ink">
       <Masthead active="research" signedIn={isMember} onNavigate={onNavigate} />
 
-      <main className="px-5 md:px-10">
+      <main className="mx-auto max-w-[1360px] px-5 md:px-10">
         <header className="max-w-[900px] pt-12 md:pt-20">
           <h1 className="text-[36px] font-medium leading-[1.05] tracking-[-0.035em] md:text-[58px]">{note.title}</h1>
+          {note.dek && <p className="mt-6 max-w-[720px] text-[19px] leading-[1.5] text-ink/75 md:text-[21px]">{note.dek}</p>}
           <p className="mt-6 text-[14px] text-quiet">
+            {note.topic}
+            <span className="mx-2">·</span>
             {author ? `${author}, ` : ''}
             <span className="tabular-nums">{note.date}</span>
           </p>
@@ -71,7 +74,7 @@ export default function Note(props: Props) {
                 ))}
                 {entered && (
                   <p className="mt-10 bg-stone px-5 py-4 text-[16px] leading-[1.5]">
-                    Stoa entered a position in {note.title.split(':')[0]} in {entered}, after this note was published.
+                    Stoa invested in {note.title.split(':')[0]} in {entered}, after this note was published.
                   </p>
                 )}
               </>
