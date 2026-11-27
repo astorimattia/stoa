@@ -7,7 +7,6 @@ export type NoteBody = {
 
 export const noteBodies: Record<string, NoteBody> = {
   'micron-margin': {
-    author: 'Dinki',
     sections: [
       {
         paragraphs: [
@@ -41,7 +40,6 @@ export const noteBodies: Record<string, NoteBody> = {
 }
 
 noteBodies['anthropic-ipo'] = {
-  author: 'Dinki',
   sections: [
     {
       paragraphs: [
@@ -68,8 +66,5 @@ noteBodies['anthropic-ipo'] = {
 }
 
 export const noteAuthors: Record<string, string> = {
-  'anthropic-ipo': 'Dinki',
-  'micron-margin': 'Dinki',
-  'elections-vc': 'Dinki',
   'space-insurance': 'Hayden Bleecker',
 }

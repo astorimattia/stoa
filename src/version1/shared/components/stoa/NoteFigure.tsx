@@ -2,7 +2,7 @@ import React from 'react'
 
 import { SHOW_VOICES, stoaSources, type StoaNote } from '../../stoaData'
 
-/** A note's chart where it has one; otherwise a quiet olive tile with its topic, so every note has a face. */
+/** A note's chart where it has one; otherwise a quiet olive tile with the Stoa name, so every note has a face. */
 export function NoteFigure({ note, className = '' }: { note: StoaNote; className?: string }) {
   if (note.figure) {
     return <img src={note.figure} alt="" loading="lazy" className={`w-full bg-stone object-contain p-3 ${className}`} />
@@ -16,7 +16,7 @@ export function NoteFigure({ note, className = '' }: { note: StoaNote; className
           <span className="mt-3 text-[14px] text-quiet">{voice.who}</span>
         </>
       ) : (
-        <span className="text-[34px] font-medium leading-[1.05] tracking-[-0.03em] text-olive md:text-[40px]">{note.topic}</span>
+        <span className="text-[34px] font-medium leading-[1.05] tracking-[-0.03em] text-olive md:text-[40px]">Stoa</span>
       )}
     </span>
   )

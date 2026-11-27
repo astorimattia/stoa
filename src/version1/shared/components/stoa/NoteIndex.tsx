@@ -20,7 +20,6 @@ export function NoteIndex({ notes, onOpenNote }: Props) {
                 {n.title}
               </span>
               <span className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[14px] text-quiet">
-                <span>{n.topic}</span>
                 <span className="tabular-nums">{n.date}</span>
                 {entered && <span className="text-ink">Position entered {entered}</span>}
               </span>
