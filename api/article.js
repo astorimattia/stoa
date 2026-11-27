@@ -59,6 +59,22 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
+  // Editor images, stored in Postgres by the admin upload. Public and
+  // immutable: the id is random and never reused.
+  if (req.query.image) {
+    const id = String(req.query.image)
+    if (!/^[a-f0-9]{24}\.(jpg|png|gif|webp)$/.test(id)) return res.status(400).json({ error: 'Bad image' })
+    const sql = getSql()
+    if (!sql) return res.status(503).json({ error: 'Not configured' })
+    const table = req.query.test === '1' ? 'stoa_test_images' : 'stoa_images'
+    let row
+    try { row = (await sql`select type, data from ${T(sql, table)} where id = ${id} limit 1`)[0] } catch { row = null }
+    if (!row) return res.status(404).json({ error: 'Not found' })
+    res.setHeader('Content-Type', row.type)
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+    return res.status(200).send(Buffer.from(row.data, 'base64'))
+  }
+
   const wantsAccess = req.query.access === '1'
   const wantsIndex = req.query.index === '1'
   const piece = (req.query.piece || '').toString().slice(0, 100)

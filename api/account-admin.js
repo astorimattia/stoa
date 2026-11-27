@@ -179,8 +179,8 @@ export default async function handler(req, res) {
       }
 
       // Editor image upload: the browser has already resized the image.
-      // It goes to the site's Vercel Blob store under a random name, and
-      // the piece stores only the returned https URL.
+      // The bytes are stored in the site's own Postgres database under a
+      // random id, and the piece stores only the public image URL.
       if (action === 'upload-image') {
         const types = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' }
         const type = String(body.type || '')
@@ -188,16 +188,15 @@ export default async function handler(req, res) {
         if (!types[type] || !data) { await audit(ip, action, null, false); return res.status(400).json({ error: 'Use a JPEG, PNG, GIF or WebP image' }) }
         const bytes = Buffer.from(data, 'base64')
         if (!bytes.length || bytes.length > 3_000_000) { await audit(ip, action, null, false); return res.status(413).json({ error: 'This image is too large (3 MB at most)' }) }
-        if (!process.env.BLOB_READ_WRITE_TOKEN) return res.status(503).json({ error: 'Image storage is not connected to this deployment' })
         try {
-          const { put } = await import('@vercel/blob')
-          const name = (test ? 'test/' : '') + 'pieces/' + new Date().toISOString().slice(0, 7) + '/' + randomBytes(12).toString('hex') + '.' + types[type]
-          const blob = await put(name, bytes, { access: 'public', contentType: type, cacheControlMaxAge: 31536000, addRandomSuffix: false })
+          await sql`create table if not exists ${T(sql, pfx + 'images')}(id text primary key, type text not null, data text not null, created_at timestamptz not null default now())`
+          const id = randomBytes(12).toString('hex') + '.' + types[type]
+          await sql`insert into ${T(sql, pfx + 'images')}(id, type, data) values (${id}, ${type}, ${data})`
           await audit(ip, action, null, true)
-          return res.status(200).json({ url: blob.url })
+          return res.status(200).json({ url: 'https://' + (req.headers['x-forwarded-host'] || req.headers.host) + '/api/article?image=' + id + (test ? '&test=1' : '') })
         } catch (e) {
           await audit(ip, action, null, false)
-          return res.status(502).json({ error: 'The image could not be stored. Check that the Blob store is public.' })
+          return res.status(502).json({ error: 'The image could not be stored.' })
         }
       }
 
