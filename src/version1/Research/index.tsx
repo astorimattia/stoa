@@ -3,7 +3,8 @@ import React from 'react'
 import { Masthead, StoaPage } from '../shared/components/stoa/Masthead'
 import { IndexTitle } from '../shared/components/stoa/IndexList'
 import { Colophon } from '../shared/components/stoa/Colophon'
-import { stoaNotes, stoaPositions, stoaSources, type StoaNote } from '../shared/stoaData'
+import { NoteFigure as Figure } from '../shared/components/stoa/NoteFigure'
+import { SHOW_VOICES, stoaNotes, stoaPositions, stoaSources, type StoaNote } from '../shared/stoaData'
 import { noteAuthors } from '../shared/stoaNoteBodies'
 
 type Props = Partial<typeof args> & {
@@ -15,14 +16,17 @@ type Props = Partial<typeof args> & {
 export default function Research(props: Props) {
   const { count, signedIn, onNavigate, onOpenNote } = { ...args, ...props }
   const [lead, ...rest] = stoaNotes.slice(0, count)
-  const leadVoice = stoaSources[lead.slug]?.voice
+  const leadVoice = SHOW_VOICES ? stoaSources[lead.slug]?.voice : undefined
 
   return (
     <div className="min-h-full bg-paper font-sans text-ink">
       <Masthead active="research" signedIn={signedIn} onNavigate={onNavigate} />
 
-      <main className="px-5 md:px-10">
+      <main className="mx-auto max-w-[1360px] px-5 md:px-10">
         <IndexTitle>Research</IndexTitle>
+        <p className="mt-5 max-w-[560px] text-[18px] leading-[1.5] text-ink/75">
+          Notes on where capital is moving, written after talking to the people closest to it. The opening of every note is free.
+        </p>
 
         {/* The latest note leads: its chart, its title, and the voice behind it */}
         <button
@@ -76,33 +80,13 @@ export const argTypes = {
   count: { control: 'range', min: 2, max: 7, step: 1 },
 }
 
-/** The note's chart where it has one; otherwise the expert's line, so every note has a face. */
-function Figure({ note, className }: { note: StoaNote; className: string }) {
-  if (note.figure) {
-    return <img src={note.figure} alt="" className={`w-full bg-stone object-contain p-3 ${className}`} />
-  }
-  const voice = stoaSources[note.slug]?.voice
-  return (
-    <span className={`flex w-full flex-col justify-end bg-stone p-6 ${className}`}>
-      {voice ? (
-        <>
-          <span className="text-[20px] leading-[1.3] tracking-[-0.01em] text-olive md:text-[22px]">“{voice.quote}”</span>
-          <span className="mt-3 text-[14px] text-quiet">{voice.who}</span>
-        </>
-      ) : (
-        <span className="text-[44px] font-medium leading-none tracking-[-0.03em] text-olive">Stoa</span>
-      )}
-    </span>
-  )
-}
-
 function Byline({ note }: { note: StoaNote }) {
   const author = noteAuthors[note.slug]
   const entered = stoaPositions.find((p) => p.note === note.slug)?.entered
   return (
     <span className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-[14px] tabular-nums text-quiet">
       <span>{author ? `${author}, ${note.date}` : note.date}</span>
-      {entered && <span className="text-ink">Position entered {entered}</span>}
+      {entered && <span className="text-ink">Invested {entered}</span>}
     </span>
   )
 }

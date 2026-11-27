@@ -11,21 +11,20 @@ type Props = Partial<typeof args> & {
   onOpenNote?: (slug: string) => void
 }
 
-export default function Positions(props: Props) {
+export default function Investments(props: Props) {
   const { signedIn, onNavigate, onOpenNote } = { ...args, ...props }
-  const total = stoaPositions.reduce((sum, p) => sum + (p.conversations ?? 0), 0)
 
   return (
     <div className="min-h-full bg-paper font-sans text-ink">
-      <Masthead active="positions" signedIn={signedIn} onNavigate={onNavigate} />
+      <Masthead active="investments" signedIn={signedIn} onNavigate={onNavigate} />
 
-      <main className="px-5 md:px-10">
-        <IndexTitle>Positions</IndexTitle>
+      <main className="mx-auto max-w-[1360px] px-5 md:px-10">
+        <IndexTitle>Investments</IndexTitle>
         <p className="mt-5 max-w-[560px] text-[18px] leading-[1.5] text-ink/75">
-          {stoaPositions.length} companies, entered after {total} conversations with the people who know them best.
+          Companies we have invested in, each after doing the research first. Where we published a note before investing, it is linked beside the company.
         </p>
 
-        {/* Each row reads left to right: the company, why we hold it, and what came before */}
+        {/* Each row reads left to right: the company, why we invested, and the note that came before */}
         <ol className="mt-14 flex flex-col gap-14 md:mt-20 md:gap-16">
           {stoaPositions.map((p) => {
             const note = p.note ? noteBySlug(p.note) : undefined
@@ -38,20 +37,29 @@ export default function Positions(props: Props) {
                   <Mark website={p.website} name={p.company} />
                   <div className="min-w-0">
                     <p className="text-[26px] font-medium leading-[1.1] tracking-[-0.025em] md:text-[30px]">{p.company}</p>
-                    <p className="mt-1.5 text-[14px] tabular-nums text-quiet">Entered {p.entered}</p>
+                    <p className="mt-1.5 text-[14px] tabular-nums text-quiet">{p.sector} · Invested {p.entered}</p>
                   </div>
                 </div>
 
                 <p className="text-[19px] leading-[1.45] md:text-[21px]">{p.reason}</p>
 
                 <div className="text-[15px] leading-[1.5] md:col-start-2 lg:col-start-auto">
-                  {p.conversations && <p className="text-quiet">{p.conversations} conversations before entry</p>}
+                  {p.website && (
+                    <a
+                      href={p.website}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block text-quiet transition-colors duration-150 hover:text-ink"
+                    >
+                      {p.website.replace(/^https?:\/\//, '').replace(/^www\./, '')}
+                    </a>
+                  )}
                   {note && (
                     <button
                       onClick={() => onOpenNote?.(note.slug)}
                       className="mt-1 text-left underline decoration-1 underline-offset-4 transition-opacity duration-150 hover:opacity-70"
                     >
-                      Our note, {note.date}
+                      Read our note, {note.date}
                     </button>
                   )}
                 </div>

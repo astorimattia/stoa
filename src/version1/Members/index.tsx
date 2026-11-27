@@ -26,7 +26,7 @@ export default function Members(props: Props) {
       <Masthead active="members" signedIn={signedIn} onNavigate={onNavigate} />
 
       {signedIn ? (
-        <main className="px-5 md:px-10">
+        <main className="mx-auto max-w-[1360px] px-5 md:px-10">
           <IndexTitle>Allocations</IndexTitle>
 
           {/* Open allocations lead: the reason a member signs in */}
@@ -71,7 +71,7 @@ export default function Members(props: Props) {
           </p>
         </main>
       ) : (
-        <main className="grid grid-cols-1 gap-16 px-5 md:grid-cols-2 md:gap-14 md:px-10">
+        <main className="mx-auto grid max-w-[1360px] grid-cols-1 gap-16 px-5 md:grid-cols-2 md:gap-14 md:px-10">
           <section>
             <IndexTitle>Request access</IndexTitle>
             <div className="mt-10 max-w-[480px] md:mt-12">
@@ -110,7 +110,7 @@ export default function Members(props: Props) {
                   value={signInEmail}
                   onChange={(e) => setSignInEmail(e.target.value)}
                   placeholder="you@firm.com"
-                  className="min-w-0 flex-1 bg-stone px-4 py-3.5 text-[17px] text-ink outline-none placeholder:text-quiet focus:bg-rule"
+                  className="min-w-0 flex-1 border border-rule bg-paper px-4 py-3.5 text-[17px] text-ink outline-none transition-colors duration-150 placeholder:text-quiet focus:border-ink"
                 />
                 <button
                   type="submit"

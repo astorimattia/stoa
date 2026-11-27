@@ -36,7 +36,7 @@ export type StoaPosition = {
 }
 
 export const stoaPositions: StoaPosition[] = [
-  { company: 'Erebor', sector: 'Banking', entered: 'Nov 2026', note: 'erebor', reason: 'A national bank built for the companies the big banks stopped understanding after SVB.', website: 'https://erebor.com', conversations: 11 },
+  { company: 'Erebor', sector: 'Banking', entered: 'Nov 2026', note: 'erebor', reason: 'A national bank built for the companies the big banks stopped understanding after SVB.', website: 'https://erebor.bank', conversations: 11 },
   { company: 'Fluidstack', sector: 'Compute', entered: 'Aug 2026', reason: 'GPU capacity sold forward to the labs, financed against the contracts.', website: 'https://fluidstack.io', conversations: 8 },
   { company: 'Kalshi', sector: 'Exchanges', entered: 'Jun 2026', reason: 'A regulated venue for event contracts, ahead of the volume.', website: 'https://kalshi.com', conversations: 6 },
   { company: 'AMI Labs', sector: 'Research', entered: 'Apr 2026', reason: 'World models from a team that has argued for them for a decade.', website: 'https://amilabs.xyz', conversations: 5 },
@@ -44,6 +44,12 @@ export const stoaPositions: StoaPosition[] = [
 ]
 
 export const noteBySlug = (slug: string) => stoaNotes.find((n) => n.slug === slug)
+
+/**
+ * Whether the site shows the expert quotes and "We spoke with" lists below.
+ * Off for the public launch: these are illustrative and anonymised. Turn it back on once they are the real calls.
+ */
+export const SHOW_VOICES = false
 
 // Who each note drew on. Illustrative and anonymised: replace with the real calls behind each note.
 export type StoaVoice = { quote: string; who: string }
