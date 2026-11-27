@@ -72,6 +72,15 @@ export default function PiecesAdmin({ secret, pieces, drafts, review, onChanged 
       return j
     } catch (e: any) { setErr(e?.message || 'The action did not complete'); return null } finally { setBusy(false) }
   }
+  // Editor images: resized in the browser, stored in the site's Blob store.
+  async function uploadImage(file: File) {
+    const { prepareImage } = await import('./imageUpload')
+    const img = await prepareImage(file)
+    const res = await fetch('/api/account-admin', { method: 'POST', headers: auth, body: JSON.stringify({ action: 'upload-image', ...img }) })
+    const j = await res.json().catch(() => ({}))
+    if (!res.ok || !j.url) throw new Error(j.error || (res.status === 413 ? 'This image is too large' : 'The image could not be uploaded'))
+    return String(j.url)
+  }
   async function getJson(path: string) {
     const res = await fetch(path, { headers: { Authorization: `Bearer ${secret}` } })
     const j = await res.json().catch(() => ({}))
@@ -267,7 +276,7 @@ export default function PiecesAdmin({ secret, pieces, drafts, review, onChanged 
             <input className="w-full border-0 bg-transparent font-serif text-4xl font-light leading-tight tracking-tight outline-none placeholder:text-muted/60" placeholder="Title" value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} />
             <input className="mt-4 w-full border-0 bg-transparent font-serif text-lg italic text-ink/75 outline-none placeholder:text-muted/60" placeholder="One-line summary" value={editing.summary} onChange={(e) => setEditing({ ...editing, summary: e.target.value })} />
             <Suspense fallback={<p className="mt-8 font-sans text-sm text-muted">Opening the editor…</p>}>
-              <RichEditor key={editorKey} value={editing.body} onChange={(body) => setEditing((e) => e ? { ...e, body } : e)} onError={setErr} />
+              <RichEditor key={editorKey} value={editing.body} onChange={(body) => setEditing((e) => e ? { ...e, body } : e)} onError={setErr} onUpload={uploadImage} />
             </Suspense>
           </div>
           <aside className="space-y-6 border-t border-rule pt-6 lg:border-0 lg:pt-0">
