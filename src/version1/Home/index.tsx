@@ -94,8 +94,7 @@ export default function Home(props: Props) {
               <li key={n.slug}>
                 <button onClick={() => onOpenNote?.(n.slug)} className="group flex h-full w-full flex-col text-left">
                   <NoteFigure note={n} className="aspect-[4/3]" />
-                  <span className="mt-5 text-[14px] text-quiet">{n.topic}</span>
-                  <span className="mt-2 text-[22px] leading-[1.2] tracking-[-0.02em] decoration-1 underline-offset-4 group-hover:underline">
+                  <span className="mt-5 text-[22px] leading-[1.2] tracking-[-0.02em] decoration-1 underline-offset-4 group-hover:underline">
                     {n.title}
                   </span>
                   {n.dek && <span className="mt-3 text-[16px] leading-[1.5] text-ink/75">{n.dek}</span>}

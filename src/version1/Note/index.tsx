@@ -36,8 +36,6 @@ export default function Note(props: Props) {
           <h1 className="text-[36px] font-medium leading-[1.05] tracking-[-0.035em] md:text-[58px]">{note.title}</h1>
           {note.dek && <p className="mt-6 max-w-[720px] text-[19px] leading-[1.5] text-ink/75 md:text-[21px]">{note.dek}</p>}
           <p className="mt-6 text-[14px] text-quiet">
-            {note.topic}
-            <span className="mx-2">·</span>
             {author ? `${author}, ` : ''}
             <span className="tabular-nums">{note.date}</span>
           </p>
