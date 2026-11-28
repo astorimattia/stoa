@@ -1,8 +1,8 @@
 import React from 'react'
 
-import { StoaLogo } from '../../components/stoa/StoaLogo'
+import { StoaLogo } from './StoaLogo'
 
-export type StoaPage = 'home' | 'research' | 'investments' | 'members'
+export type StoaPage = 'home' | 'research' | 'investments' | 'members' | 'signin' | 'request'
 
 type Props = {
   active: StoaPage
@@ -39,9 +39,10 @@ export function Masthead({ active, signedIn, onNavigate }: Props) {
           link('members', 'Members')
         ) : (
           <>
-            {link('members', 'Sign in', 'hidden sm:inline')}
+            {link('signin', 'Sign in', 'hidden sm:inline')}
             <button
-              onClick={() => onNavigate?.('members')}
+              onClick={() => onNavigate?.('request')}
+              aria-current={active === 'request' ? 'page' : undefined}
               className="whitespace-nowrap bg-olive px-2.5 py-1.5 text-paper transition-opacity duration-150 hover:opacity-90 sm:px-3.5"
             >
               <span className="sm:hidden">Join</span>

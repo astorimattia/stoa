@@ -31,6 +31,8 @@ export default async function handler(req, res) {
   const email = (body.email || '').toString().trim().slice(0, 200).toLowerCase()
   const role = (body.role || '').toString().slice(0, 50)
   const piece = body.piece ? body.piece.toString().slice(0, 300) : null
+  // The optional line from the request form ("Anything we should know?"), sent along in the alert email.
+  const note = body.note ? body.note.toString().trim().slice(0, 280) : ''
 
   if (!email || !EMAIL_RE.test(email)) {
     return res.status(400).json({ error: 'A valid email is required' })
@@ -72,6 +74,7 @@ export default async function handler(req, res) {
       `Email: ${email}`,
       `Role: ${role || '-'}`,
       `Piece: ${piece || '(library access)'}`,
+      ...(note ? ['', `Note: ${note}`] : []),
     ].join('\n')
     try {
       const resp = await fetch('https://api.resend.com/emails', {
