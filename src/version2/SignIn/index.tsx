@@ -18,8 +18,9 @@ type Props = Partial<typeof args> & {
   onSignOut?: () => void
 }
 
-/** Where an email link or Google brings the reader back to. */
-const returnUrl = () => `${window.location.origin}/version2#members`
+/** Where an email link or Google brings the reader back to: the members view of the page they started on. */
+const returnUrl = () =>
+  `${window.location.origin}${window.location.pathname.startsWith('/version2') ? '/version2' : ''}#members`
 
 // The "Sign In" frame of the Stoa prototype in Magic Patterns. Signing in proves an email;
 // approval is separate, and an unapproved email sees the no-access step.

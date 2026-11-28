@@ -9,5 +9,5 @@
   "theme_color": "#2B3424",
   "background_color": "#FFFFFF",
   "display": "standalone",
-  "start_url": "/version2"
+  "start_url": "/"
 }

@@ -54,43 +54,43 @@
     },
     {
       "source": "/admin/legacy",
-      "destination": "/index.html"
+      "destination": "/app.html"
     },
     {
       "source": "/research",
-      "destination": "/index.html"
+      "destination": "/app.html"
     },
     {
       "source": "/research/authors/:slug",
-      "destination": "/index.html"
+      "destination": "/app.html"
     },
     {
       "source": "/research/:slug",
-      "destination": "/index.html"
+      "destination": "/app.html"
     },
     {
       "source": "/admin",
-      "destination": "/index.html"
+      "destination": "/app.html"
     },
     {
       "source": "/signin",
-      "destination": "/index.html"
+      "destination": "/app.html"
     },
     {
       "source": "/welcome",
-      "destination": "/index.html"
+      "destination": "/app.html"
     },
     {
       "source": "/privacy",
-      "destination": "/index.html"
+      "destination": "/app.html"
     },
     {
       "source": "/unsubscribe",
-      "destination": "/index.html"
+      "destination": "/app.html"
     },
     {
       "source": "/email-preferences",
-      "destination": "/index.html"
+      "destination": "/app.html"
     }
   ],
   "redirects": [
