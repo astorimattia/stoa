@@ -49,7 +49,7 @@ export default function Home(props: Props) {
               Early to new markets, close to the people building them.
             </h1>
             <p className="mt-6 max-w-[500px] text-[18px] leading-[1.55] text-ink/75 md:text-[19px]">
-              Stoa picks a market that's still forming and talks to the people in it: founders first, then the engineers, operators and regulators around them. Reporting is always a step behind the people doing the work, so we go to them first.
+              Stoa picks a market while it's still forming and talks to the people inside it. Then we write up what we found.
             </p>
             {!signedIn && (
               <div className="mt-10 max-w-[500px]">
