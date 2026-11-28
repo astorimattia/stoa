@@ -25,7 +25,7 @@ export function Colophon() {
             <a href="/privacy" className="transition-opacity duration-150 hover:opacity-70">Privacy</a>
           </nav>
           <p className="max-w-[560px]">
-            Stoa is free to read and free to join, and every member is approved by hand. Nothing here is investment advice. Allocations are offered to members only.
+            Stoa is free to read and free to join. We read every request ourselves. Nothing here is investment advice.
           </p>
           <p>© {new Date().getFullYear()} Stoa</p>
         </div>

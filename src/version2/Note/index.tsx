@@ -79,7 +79,7 @@ export default function Note(props: Props) {
             ) : (
               <section className="mt-10 bg-stone px-5 py-8 md:px-8">
                 <p className="mb-6 text-[22px] font-medium leading-[1.25] tracking-[-0.015em]">
-                  {body ? 'The rest is for members. Joining is free.' : 'This note is for members. Joining is free.'}
+                  {body ? 'The rest of this note goes out by email. It’s free.' : 'This note goes out by email. It’s free.'}
                 </p>
                 <Intake sent={intake === 'sent'} onRequestAccess={onRequestAccess} />
               </section>

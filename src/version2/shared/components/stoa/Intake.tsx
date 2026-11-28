@@ -10,7 +10,7 @@ type Props = {
 }
 
 /** The one action on Stoa: an email, a button, and a line on what members get. */
-export function Intake({ sent: sentProp = false, promise = 'Membership is free. We review every request by hand, so everyone inside has been vetted.', onRequestAccess, idSuffix }: Props) {
+export function Intake({ sent: sentProp = false, promise = 'Free. We read every request ourselves, so we know who’s reading. We answer within two business days.', onRequestAccess, idSuffix }: Props) {
   const [email, setEmail] = useState('')
   const fieldId = idSuffix ? `intake-email-${idSuffix}` : 'intake-email'
   const [sent, setSent] = useState(sentProp)
@@ -19,9 +19,9 @@ export function Intake({ sent: sentProp = false, promise = 'Membership is free. 
   if (sent) {
     return (
       <div className="bg-olive px-5 py-5 text-paper">
-        <p className="text-[18px] font-medium">Request received.</p>
+        <p className="text-[18px] font-medium">Got it.</p>
         <p className="mt-1 text-[15px] leading-[1.5] text-olive-soft">
-          We read every request ourselves. We’ll write to {email || 'you'} within a week.
+          We read every request ourselves, and we’ll write to {email || 'you'} within two business days.
         </p>
       </div>
     )
