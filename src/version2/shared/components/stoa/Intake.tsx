@@ -10,7 +10,7 @@ type Props = {
 }
 
 /** The one action on Stoa: an email, a button, and a line on what members get. */
-export function Intake({ sent: sentProp = false, promise = 'Free. We read every request ourselves, so we know who’s reading. We answer within two business days.', onRequestAccess, idSuffix }: Props) {
+export function Intake({ sent: sentProp = false, promise = 'Free. We read every request ourselves, so we know who’s reading.', onRequestAccess, idSuffix }: Props) {
   const [email, setEmail] = useState('')
   const fieldId = idSuffix ? `intake-email-${idSuffix}` : 'intake-email'
   const [sent, setSent] = useState(sentProp)
