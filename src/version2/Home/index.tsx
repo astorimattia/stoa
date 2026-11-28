@@ -17,18 +17,18 @@ type Props = Partial<typeof args> & {
 const steps = [
   {
     n: '01',
-    title: 'We call the people who know',
-    body: 'Underwriters, engineers, bankers, regulators and operators. The people who see a market from the inside, before it shows up in the numbers.',
+    title: 'We start with the founders',
+    body: 'Then the engineers, operators and regulators around them. People who can explain a market from the inside, long before the coverage catches up.',
   },
   {
     n: '02',
-    title: 'We write down what we learn',
-    body: 'Short, plain notes on where capital is moving and why. The opening of every note is free to read. Members read the rest.',
+    title: 'We write up the whole market',
+    body: 'What the category is, who is in it, and what would have to be true for it to be big. We keep it short and we show the numbers.',
   },
   {
     n: '03',
-    title: 'We invest where it points',
-    body: 'When the research is strong enough, we invest. Members hear about those allocations first.',
+    title: 'We invest',
+    body: "Every investment we make comes out of this research. We put money into nothing we haven't studied ourselves.",
   },
 ]
 
@@ -44,12 +44,12 @@ export default function Home(props: Props) {
         {/* The promise, the painting, and the one action */}
         <section className="grid grid-cols-1 gap-8 px-5 pt-4 md:px-10 md:pt-8 lg:grid-cols-[minmax(0,6fr)_minmax(0,6fr)] lg:items-center lg:gap-16">
           <div className="order-2 lg:order-1">
-            <p className="text-[14px] font-medium uppercase tracking-[0.12em] text-olive">Research and investments</p>
+            <p className="text-[14px] font-medium uppercase tracking-[0.12em] text-olive">Research on new markets</p>
             <h1 className="mt-5 text-[42px] font-medium leading-[1.02] tracking-[-0.04em] md:text-[64px]">
-              We research first. Then we invest.
+              Early to new markets, close to the people building them.
             </h1>
             <p className="mt-6 max-w-[500px] text-[18px] leading-[1.55] text-ink/75 md:text-[19px]">
-              Stoa publishes clear research on where capital is moving, drawn from the people who underwrite, build, regulate and run each market. When the research is strong enough, we put our own capital behind it.
+              Stoa picks a market that's still forming and talks to the people in it: founders first, then the engineers, operators and regulators around them. Reporting is always a step behind the people doing the work, so we go to them first.
             </p>
             {!signedIn && (
               <div className="mt-10 max-w-[500px]">
@@ -81,12 +81,12 @@ export default function Home(props: Props) {
         {/* The latest research */}
         <section className="px-5 pt-20 md:px-10 md:pt-28">
           <div className="flex items-end justify-between gap-6">
-            <h2 className="text-[32px] font-medium leading-none tracking-[-0.03em] md:text-[44px]">Latest research</h2>
+            <h2 className="text-[32px] font-medium leading-none tracking-[-0.03em] md:text-[44px]">Latest notes</h2>
             <button
               onClick={() => onNavigate?.('research')}
               className="shrink-0 text-[15px] underline decoration-1 underline-offset-4 transition-opacity duration-150 hover:opacity-70"
             >
-              All research
+              All notes
             </button>
           </div>
           <ul className="mt-10 grid grid-cols-1 gap-x-10 gap-y-14 md:mt-12 md:grid-cols-3">
@@ -113,7 +113,7 @@ export default function Home(props: Props) {
             <div>
               <h2 className="text-[32px] font-medium leading-none tracking-[-0.03em] md:text-[44px]">Investments</h2>
               <p className="mt-5 max-w-[440px] text-[18px] leading-[1.55] text-ink/75">
-                We invest in the companies our research keeps pointing to. These are some of them.
+                Every investment we make comes out of this research. These are the ones so far.
               </p>
               <button
                 onClick={() => onNavigate?.('investments')}
@@ -145,9 +145,9 @@ export default function Home(props: Props) {
           <section className="px-5 pt-20 md:px-10 md:pt-28">
             <div className="grid grid-cols-1 gap-8 bg-stone px-5 py-10 md:px-12 md:py-14 lg:grid-cols-[minmax(0,6fr)_minmax(0,6fr)] lg:items-center lg:gap-16">
               <div>
-                <h2 className="text-[30px] font-medium leading-[1.1] tracking-[-0.03em] md:text-[40px]">Read every note in full.</h2>
+                <h2 className="text-[30px] font-medium leading-[1.1] tracking-[-0.03em] md:text-[40px]">Every note in full, the morning it’s written.</h2>
                 <p className="mt-4 max-w-[460px] text-[17px] leading-[1.55] text-ink/75">
-                  Members get the full research by email and first look at our investments.
+                  It’s free and we won’t sell you anything.
                 </p>
               </div>
               <Intake sent={intake === 'sent'} onRequestAccess={onRequestAccess} idSuffix="footer" />

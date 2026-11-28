@@ -21,7 +21,7 @@ export default function Investments(props: Props) {
       <main className="mx-auto max-w-[1360px] px-5 md:px-10">
         <IndexTitle>Investments</IndexTitle>
         <p className="mt-5 max-w-[560px] text-[18px] leading-[1.5] text-ink/75">
-          Companies we have invested in, each after doing the research first. Where we published a note before investing, it is linked beside the company.
+          Companies we invested in after researching the market around them. Where we published a note first, it’s linked. Where we didn’t, we say so.
         </p>
 
         {/* Each row reads left to right: the company, why we invested, and the note that came before */}

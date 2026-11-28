@@ -25,7 +25,7 @@ export default function Research(props: Props) {
       <main className="mx-auto max-w-[1360px] px-5 md:px-10">
         <IndexTitle>Research</IndexTitle>
         <p className="mt-5 max-w-[560px] text-[18px] leading-[1.5] text-ink/75">
-          Notes on where capital is moving, from the people who see each market from the inside. The opening of every note is free.
+          Notes on markets that are still forming, written after talking to the people building in them. The opening of every note is open to everyone.
         </p>
 
         {/* The latest note leads: its chart, its title, and the voice behind it */}
