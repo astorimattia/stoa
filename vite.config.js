@@ -11,6 +11,8 @@ export default defineConfig({
         main: resolve(import.meta.dirname, 'index.html'),
         // stoacap.com/version1 (see vercel.json)
         version1: resolve(import.meta.dirname, 'version1.html'),
+        // stoacap.com/version2 (see vercel.json)
+        version2: resolve(import.meta.dirname, 'version2.html'),
       },
     },
   },

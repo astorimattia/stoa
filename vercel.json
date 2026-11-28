@@ -37,6 +37,14 @@
       "destination": "/version1.html"
     },
     {
+      "source": "/version2",
+      "destination": "/version2.html"
+    },
+    {
+      "source": "/version2/",
+      "destination": "/version2.html"
+    },
+    {
       "source": "/api/auth/:route*",
       "destination": "/api/auth-handler?route=:route*"
     },
