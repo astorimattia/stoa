@@ -182,6 +182,9 @@ export default async function handler(req, res) {
       const requests = test ? 'stoa_test_requests' : 'stoa_requests'
       const pending = await upsertPendingRequest(sql, requests, {email, role, piece, note, source})
       if (pending.created) {
+        // Heads-up to Mattia only (his own inbox), live requests only. Best-effort:
+        // a failure is logged and never changes the visitor's confirmation.
+        if (!test) await alertOwner({email, role, piece, note, source})
         // Acknowledgement to the requester. Test-captured on staging; the
         // real send stays off until the sender domain is verified and the
         // send itself is approved.
@@ -298,4 +301,37 @@ export async function ensureTestSchema(sql) {
     id bigint generated always as identity primary key, email text not null, piece text not null,
     opened_at timestamptz not null default now()
   )`
+}
+
+// One plain-text alert per genuinely new pending request, to the owner's own
+// inbox (NOTIFICATION_EMAIL, default mattia@astori.vc). The requester's text
+// is shown as data only. Sent from the verified stoacap.com sender.
+async function alertOwner({email, role, piece, note, source}) {
+  const key = process.env.RESEND_API_KEY
+  if (!key) { console.error('[stoa] RESEND_API_KEY not set; owner alert skipped'); return }
+  const clean = (v, n) => String(v || '').replace(/[\r\n]+/g, ' ').slice(0, n)
+  const lines = [
+    `New Stoa access request from ${clean(email, 200)}.`,
+    '',
+    ...(note ? [`Note: ${clean(note, 280)}`] : []),
+    ...(piece ? [`Piece: ${clean(piece, 300)}`] : []),
+    ...(source ? [`From: ${clean(source, 40)}`] : []),
+    '',
+    'Review it in the admin dashboard: https://www.stoacap.com/admin',
+  ]
+  try {
+    const resp = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: 'Stoa Requests <research@stoacap.com>',
+        to: [process.env.NOTIFICATION_EMAIL || 'mattia@astori.vc'],
+        subject: `Stoa access request: ${clean(email, 120)}`,
+        text: lines.join('\n'),
+      }),
+    })
+    if (!resp.ok) console.error('[stoa] owner alert rejected:', resp.status, (await resp.text().catch(() => '')).slice(0, 200))
+  } catch (err) {
+    console.error('[stoa] owner alert failed:', err)
+  }
 }
