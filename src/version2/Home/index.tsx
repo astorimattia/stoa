@@ -22,12 +22,12 @@ const steps = [
   },
   {
     n: '02',
-    title: 'We write up the whole market',
-    body: 'What the category is, who is in it, and what would have to be true for it to be big. We keep it short and we show the numbers.',
+    title: 'We analyze and study the market',
+    body: '',
   },
   {
     n: '03',
-    title: 'We invest',
+    title: 'We invest when we find a winner',
     body: "Every investment we make comes out of this research. We put money into nothing we haven't studied ourselves.",
   },
 ]
@@ -72,7 +72,7 @@ export default function Home(props: Props) {
               <li key={s.n}>
                 <p className="text-[14px] tabular-nums text-olive-soft">{s.n}</p>
                 <p className="mt-3 text-[24px] font-medium leading-[1.15] tracking-[-0.02em] md:text-[26px]">{s.title}</p>
-                <p className="mt-4 text-[16px] leading-[1.55] text-paper/80">{s.body}</p>
+                {s.body && <p className="mt-4 text-[16px] leading-[1.55] text-paper/80">{s.body}</p>}
               </li>
             ))}
           </ol>
