@@ -4,20 +4,50 @@ import { Masthead, StoaPage } from '../shared/components/stoa/Masthead'
 import { IndexTitle } from '../shared/components/stoa/IndexList'
 import { Intake } from '../shared/components/stoa/Intake'
 import { Colophon } from '../shared/components/stoa/Colophon'
+import { authClient } from '../../shared/stoa/authClient'
 
 type Props = Partial<typeof args> & {
   onNavigate?: (page: StoaPage) => void
   onSignIn?: () => void
-  /** Live site: send sign-in to this page instead of the mock link. */
-  signInHref?: string
   onSignOut?: () => void
-  onRequestAccess?: (email: string) => void
+  onRequestAccess?: (email: string) => void | boolean | Promise<boolean | void>
+  /** Live site: sign in through the real account system. */
+  live?: boolean
+  /** Live site: signed in, but the email is not an approved member yet. */
+  pending?: boolean
+  /** Live site: still finding out who is signed in. */
+  checking?: boolean
 }
 
+/** Where a sign-in link or Google brings the reader back to. */
+const returnUrl = () => `${window.location.origin}/version2#members`
+
 export default function Members(props: Props) {
-  const { state, member, onNavigate, onSignIn, onSignOut, onRequestAccess, signInHref } = { ...args, ...props }
+  const { state, member, onNavigate, onSignIn, onSignOut, onRequestAccess, live, pending, checking } = { ...args, ...props }
   const [signInEmail, setSignInEmail] = useState('')
   const [linkSent, setLinkSent] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [signInError, setSignInError] = useState<string | null>(null)
+
+  const sendLink = async () => {
+    if (!live) return setLinkSent(true)
+    setSending(true)
+    setSignInError(null)
+    const { error } = await authClient.signIn
+      .magicLink({ email: signInEmail.trim(), callbackURL: returnUrl() })
+      .catch(() => ({ error: { message: '' } }))
+    setSending(false)
+    if (error) setSignInError('We couldn’t send a link just now. Please try again in a moment.')
+    else setLinkSent(true)
+  }
+
+  const google = async () => {
+    setSignInError(null)
+    const { error } = await authClient.signIn
+      .social({ provider: 'google', callbackURL: returnUrl() })
+      .catch(() => ({ error: { message: '' } }))
+    if (error) setSignInError('Google sign-in didn’t work just now. Please try again.')
+  }
   const [interest, setInterest] = useState<string[]>([])
   const signedIn = state === 'signed-in'
 
@@ -81,44 +111,75 @@ export default function Members(props: Props) {
 
           <section>
             <IndexTitle>Sign in</IndexTitle>
-            {linkSent ? (
-              <p className="mt-10 max-w-[420px] text-[17px] leading-[1.5] md:mt-12">
-                A sign-in link is on its way to {signInEmail}.{' '}
-                <button onClick={onSignIn} className="underline decoration-1 underline-offset-4">
-                  Open it
+            {checking ? (
+              <p className="mt-10 text-[17px] text-quiet md:mt-12">Checking your account…</p>
+            ) : pending ? (
+              <div className="mt-10 max-w-[420px] text-[17px] leading-[1.5] md:mt-12">
+                <p>You’re signed in as {member}, but this email isn’t a member yet.</p>
+                <p className="mt-3 text-ink/75">
+                  If you’ve already asked, we’ll write to you once we’ve read it. If not, request access with this email.
+                </p>
+                <button onClick={onSignOut} className="mt-5 text-[15px] underline decoration-1 underline-offset-4">
+                  Sign out
                 </button>
+              </div>
+            ) : linkSent ? (
+              <p className="mt-10 max-w-[420px] text-[17px] leading-[1.5] md:mt-12">
+                A sign-in link is on its way to {signInEmail}. Open it on this device to come back signed in.
+                {!live && (
+                  <>
+                    {' '}
+                    <button onClick={onSignIn} className="underline decoration-1 underline-offset-4">
+                      Open it
+                    </button>
+                  </>
+                )}
               </p>
             ) : (
-              <form
-                className="mt-10 flex max-w-[480px] flex-col gap-2 sm:flex-row md:mt-12"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  if (signInHref) {
-                    window.location.href = signInHref
-                    return
-                  }
-                  setLinkSent(true)
-                }}
-              >
-                <label htmlFor="signin-email" className="sr-only">
-                  Email
-                </label>
-                <input
-                  id="signin-email"
-                  type="email"
-                  required
-                  value={signInEmail}
-                  onChange={(e) => setSignInEmail(e.target.value)}
-                  placeholder="you@firm.com"
-                  className="min-w-0 flex-1 border border-rule bg-paper px-4 py-3.5 text-[17px] text-ink outline-none transition-colors duration-150 placeholder:text-quiet focus:border-ink"
-                />
-                <button
-                  type="submit"
-                  className="whitespace-nowrap bg-ink px-6 py-3.5 text-[17px] text-paper transition-opacity duration-150 hover:opacity-85"
+              <div className="mt-10 max-w-[480px] md:mt-12">
+                <form
+                  className="flex flex-col gap-2 sm:flex-row"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    if (!sending) sendLink()
+                  }}
                 >
-                  Email me a link
-                </button>
-              </form>
+                  <label htmlFor="signin-email" className="sr-only">
+                    Email
+                  </label>
+                  <input
+                    id="signin-email"
+                    type="email"
+                    required
+                    value={signInEmail}
+                    onChange={(e) => setSignInEmail(e.target.value)}
+                    placeholder="you@firm.com"
+                    className="min-w-0 flex-1 border border-rule bg-paper px-4 py-3.5 text-[17px] text-ink outline-none transition-colors duration-150 placeholder:text-quiet focus:border-ink"
+                  />
+                  <button
+                    type="submit"
+                    disabled={sending}
+                    className="whitespace-nowrap bg-ink px-6 py-3.5 text-[17px] text-paper transition-opacity duration-150 hover:opacity-85 disabled:opacity-60"
+                  >
+                    {sending ? 'Sending…' : 'Email me a link'}
+                  </button>
+                </form>
+                {live && (
+                  <button
+                    onClick={google}
+                    className="mt-3 w-full border border-rule px-6 py-3.5 text-[17px] transition-colors duration-150 hover:border-ink"
+                  >
+                    Continue with Google
+                  </button>
+                )}
+                {signInError ? (
+                  <p role="alert" className="mt-3 text-[14px] text-ink">
+                    {signInError}
+                  </p>
+                ) : (
+                  <p className="mt-3 text-[14px] text-quiet">For members. No password to keep.</p>
+                )}
+              </div>
             )}
           </section>
         </main>
